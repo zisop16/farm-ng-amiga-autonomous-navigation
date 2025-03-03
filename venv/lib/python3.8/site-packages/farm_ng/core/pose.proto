@@ -1,0 +1,53 @@
+// This file generated for packaging, do not edit.
+// To edit, see original source:
+// /project/protos/farm_ng/core/pose.proto.
+//
+//    Copyright 2022, farm-ng inc.
+//
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//    you may not use this file except in compliance with the License.
+//    You may obtain a copy of the License at
+//
+//        http://www.apache.org/licenses/LICENSE-2.0
+//
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS,
+//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//    See the License for the specific language governing permissions and
+//    limitations under the License.
+
+syntax = "proto3";
+
+import "farm_ng/core/lie.proto";
+
+package farm_ng.core.proto;
+
+// A position, orientation, and velocity for an object or reference frame in 3D space
+message Pose {
+  // point_in_a = a_from_b * point_in_b
+  Isometry3F64 a_from_b = 1;
+  string frame_a = 2;
+  string frame_b = 3;
+
+  // Egocentric linear velocity of frame_b with respect to frame a.
+  // This is the movement of the body relative to the parent, but in the body's axes.
+  //
+  // For velocities, frame_b is assumed to be the body and frame_a is assumed to be the parent / reference.
+  // If frame_a is the body and b is the parent (e.g., this pose represents imu_from_robot),
+  // then this velocity is likely the inverse of what you want.
+  //
+  // Example 1:
+  //    If 'b' is the robot and 'a' is world (world_from_robot), this is the linear velocity of the robot.
+  //    x is moving forward, y laterally left, & z up. All without regard for heading / orientation.
+  // Example 2:
+  //    If 'b' is a tool and 'a' is the robot, this represents the actuation of the tool.
+  //    The directions are in the tools axes, but the movement is relative to the robot's body.
+  //    If the tools convention is that x points down, then lowering the tool would be
+  //    a positive x velocity, and any driving / turning of the robot would not be included.
+  Isometry3F64Tangent tangent_of_b_in_a = 4;
+}
+
+// A sequence of poses
+message PoseTree {
+  repeated Pose poses = 1;
+}
