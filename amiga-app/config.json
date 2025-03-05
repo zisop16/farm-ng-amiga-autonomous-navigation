@@ -1,0 +1,29 @@
+{
+  "configs": [
+    {
+      "name": "amiga",
+      "port": 50010,
+      "host": "localhost"
+    },
+    {
+      "name": "canbus",
+      "port": 6001,
+      "host": "localhost"
+    },
+    {
+        "name": "filter",
+        "port": 20001,
+        "host": "localhost"
+    },
+    {
+        "name": "track_follower",
+        "port": 20101,
+        "host": "localhost"
+    },
+    {
+      "name": "system_monitor",
+      "port": 20201,
+      "host": "localhost"
+    }
+  ]
+}
