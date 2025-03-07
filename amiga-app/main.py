@@ -1,157 +1,180 @@
-# Copyright (c) farm-ng, inc.
-#
-# Licensed under the Amiga Development Kit License (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://github.com/farm-ng/amiga-dev-kit/blob/main/LICENSE
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 from __future__ import annotations
 
 import argparse
 import asyncio
+import subprocess
 from pathlib import Path
 from typing import Optional
 
 import uvicorn
-from farm_ng.core.event_client_manager import (
-    EventClient,
-    EventClientSubscriptionManager,
-)
-from farm_ng.core.event_service_pb2 import EventServiceConfigList
-from farm_ng.core.event_service_pb2 import SubscribeRequest
+from farm_ng.core.event_client_manager import EventClientSubscriptionManager
+from farm_ng.core.event_service_pb2 import EventServiceConfigList, SubscribeRequest
 from farm_ng.core.events_file_reader import proto_from_json_file
 from farm_ng.core.uri_pb2 import Uri
-from fastapi import FastAPI
-from fastapi import WebSocket
+from fastapi import FastAPI, BackgroundTasks, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from google.protobuf.json_format import MessageToJson
+from contextlib import asynccontextmanager
+import os
+import json
 
-app = FastAPI()
+# Path to the GPS logging script
+NAV_LOGGER_SCRIPT = "main.py"
+SERVICE_CONFIG_PATH = "gps_service_config.json"
 
-@app.on_event("startup")
-async def startup_event():
+# Global process handler for Nav Logger
+gps_logging_process: Optional[subprocess.Popen] = None
+
+# Declare event_manager globally to avoid "not initialized" errors
+event_manager: Optional[EventClientSubscriptionManager] = None
+
+# Use lifespan instead of @app.on_event("startup")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global event_manager
     print("Initializing App...")
-    asyncio.create_task(event_manager.update_subscriptions())
+
+    if event_manager:
+        asyncio.create_task(event_manager.update_subscriptions())
+
+    yield  # Allows FastAPI to properly initialize
+    print("Shutting down...")
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# to store the events clients
-clients: dict[str, EventClient] = {}
+# ### ✅ GPS Logger API ###
+# @app.post("/start_nav_logger")
+# async def start_nav_logger(background_tasks: BackgroundTasks) -> JSONResponse:
+#     """Starts the GPS navigation logger process."""
+#     global gps_logging_process
+
+#     if gps_logging_process and gps_logging_process.poll() is None:
+#         return JSONResponse(content={"message": "Nav Logger is already running!"}, status_code=400)
+
+#     gps_logging_process = subprocess.Popen(
+#         ["python", NAV_LOGGER_SCRIPT, "--service-config", SERVICE_CONFIG_PATH],
+#         stdout=subprocess.PIPE,
+#         stderr=subprocess.PIPE
+#     )
+
+#     return JSONResponse(content={"message": "Nav Logger started successfully!"}, status_code=200)
+
+# @app.get("/stop_nav_logger")
+# async def stop_nav_logger() -> JSONResponse:
+#     """Stops the GPS navigation logger process."""
+#     global gps_logging_process
+
+#     if gps_logging_process and gps_logging_process.poll() is None:
+#         gps_logging_process.terminate()
+#         gps_logging_process = None
+#         return JSONResponse(content={"message": "Nav Logger stopped."}, status_code=200)
+
+#     return JSONResponse(content={"message": "Nav Logger is not running."}, status_code=400)
+
+# @app.get("/logger_status")
+# async def logger_status() -> JSONResponse:
+#     """Returns the status of the Nav Logger."""
+#     global gps_logging_process
+#     if gps_logging_process and gps_logging_process.poll() is None:
+#         return JSONResponse(content={"status": "running"}, status_code=200)
+#     return JSONResponse(content={"status": "stopped"}, status_code=200)
+
+# @app.get("/get_gps_log")
+# async def get_gps_log() -> JSONResponse:
+#     """Retrieve the logged GPS coordinates."""
+#     log_file_path = "coordinates.txt"
+
+#     if not Path(log_file_path).exists():
+#         return JSONResponse(content={"message": "No GPS log available"}, status_code=404)
+
+#     with open(log_file_path, "r") as log_file:
+#         coordinates = log_file.readlines()
+
+#     return JSONResponse(content={"gps_coordinates": coordinates}, status_code=200)
 
 
-@app.get("/list_uris")
-async def list_uris() -> JSONResponse:
-    """Return all the uris from the event manager."""
-    all_uris_list: EventServiceConfigList = event_manager.get_all_uris_config_list(
-        config_name="all_subscription_uris"
-    )
 
-    all_uris = {}
-    for config in all_uris_list.configs:
-        if config.name == "all_subscription_uris":
-            for subscription in config.subscriptions:
-                uri = subscription.uri
-                # service_name is formatted as "service_name=gps", so we split on "=" and take the last [1] part of it.
-                service_name = uri.query.split("=")[1]
-                key = f"{service_name}{uri.path}"
-                value = {
-                    "scheme": "protobuf",
-                    "authority": config.host,
-                    "path": uri.path,
-                    "query": uri.query,
-                }
-                all_uris[key] = value
+# Directory where track JSON files are stored
+TRACKS_DIR = "/mnt/managed_home/farm-ng-user-munir-khan/farm-ng-amiga-autonomous-navigation/amiga-app/tracks"
 
-    return JSONResponse(content=dict(sorted(all_uris.items())), status_code=200)
+@app.get("/list_tracks")
+async def list_tracks():
+    """Lists all JSON track files in the `TRACKS_DIR` directory."""
+    if not os.path.exists(TRACKS_DIR):
+        return {"message": "No tracks directory found."}
+
+    track_files = [f for f in os.listdir(TRACKS_DIR) if f.endswith(".json")]
+
+    if not track_files:
+        return {"message": "No tracks available."}
+
+    return {"tracks": track_files}
+
+@app.get("/get_track/{track_name}")
+async def get_track(track_name: str):
+    """Reads a track JSON file and returns its content."""
+    track_path = os.path.join(TRACKS_DIR, f"{track_name}.json")
+
+    if not os.path.exists(track_path):
+        return {"message": f"Track '{track_name}.json' not found."}
+
+    with open(track_path, "r") as json_file:
+        track_data = json.load(json_file)
+
+    waypoints = track_data.get("waypoints", [])
+
+    return {
+        "track_name": track_name,
+        "waypoints": waypoints
+    }
+
+@app.get("/get_coordinates")
+async def get_coordinates_file():
+    coords_file_path = "./coordinates.txt"
+    with open(coords_file_path, 'r') as coords_file:
+        text = coords_file.read()
+    return {
+        "cords": text
+    }
 
 
-@app.websocket("/subscribe/{service_name}/{uri_path:path}")
-@app.websocket("/subscribe/{service_name}/{sub_service_name}/{uri_path:path}")
-async def subscribe(
-    websocket: WebSocket,
-    service_name: str,
-    uri_path: str,
-    sub_service_name: Optional[str] = None,
-    every_n: int = 1
-):
-    """Coroutine to subscribe to an event service via websocket.
-    
-    Args:
-        websocket (WebSocket): the websocket connection
-        service_name (str): the name of the event service
-        uri_path (str): the uri path to subscribe to
-        sub_service_name (str, optional): the sub service name, if any
-        every_n (int, optional): the frequency to receive events. Defaults to 1.
-    
-    Usage:
-        ws = new WebSocket("ws://localhost:8042/subscribe/gps/pvt")
-        ws = new WebSocket("ws://localhost:8042/subscribe/oak/0/imu")
-    """
 
-    full_service_name = f"{service_name}/{sub_service_name}" if sub_service_name else service_name
-
-    client: EventClient = (
-        event_manager.clients[full_service_name]
-        if full_service_name not in ["gps", "oak/0", "oak/1", "oak/2", "oak/3"]
-        else event_manager.clients["amiga"]
-    )
-
-    await websocket.accept()
-
-    async for _, msg in client.subscribe(
-        SubscribeRequest(
-            uri=Uri(path=f"/{uri_path}", query=f"service_name={full_service_name}"),
-            every_n=every_n,
-        ),
-        decode=True,
-    ):
-        await websocket.send_json(MessageToJson(msg))
-
-    await websocket.close()
-
+### ✅ Static File Serving ###
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=Path, required=True, help="config file")
-    parser.add_argument("--port", type=int, default=8042, help="port to run the server")
-    parser.add_argument("--debug", action="store_true", help="debug mode")
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--config", type=Path, required=True, help="config file")
+    # parser.add_argument("--port", type=int, default=8042, help="port to run the server")
+    # parser.add_argument("--debug", action="store_true", help="debug mode")
+    # args = parser.parse_args()
 
-    # NOTE: we only serve the react app in debug mode
-    if not args.debug:
-        react_build_directory = Path(__file__).parent / "ts" / "dist"
+    # if not args.debug:
+    #     react_build_directory = Path(__file__).parent / "ts" / "dist"
+    #     app.mount(
+    #         "/static",
+    #         StaticFiles(directory=str(react_build_directory.resolve()), html=True),
+    #     )
 
-        app.mount(
-            "/",
-            StaticFiles(directory=str(react_build_directory.resolve()), html=True),
-        )
+    # Initialize event manager properly
+    # base_config_list: EventServiceConfigList = proto_from_json_file(
+    #     args.config, EventServiceConfigList()
+    # )
 
-    # config with all the configs
-    base_config_list: EventServiceConfigList = proto_from_json_file(
-        args.config, EventServiceConfigList()
-    )
+    # service_config_list = EventServiceConfigList()
+    # for config in base_config_list.configs:
+    #     if config.port == 0:
+    #         continue
+    #     service_config_list.configs.append(config)
 
-    # filter out services to pass to the events client manager
-    service_config_list = EventServiceConfigList()
-    for config in base_config_list.configs:
-        if config.port == 0:
-            continue
-        service_config_list.configs.append(config)
-
-    event_manager = EventClientSubscriptionManager(config_list=service_config_list)
-
-    # run the server
-    uvicorn.run(app, host="0.0.0.0", port=args.port)  # noqa: S104
+    # event_manager = EventClientSubscriptionManager(config_list=service_config_list)
+    port = 8000
+    uvicorn.run(app, host="0.0.0.0", port=port)

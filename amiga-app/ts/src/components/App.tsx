@@ -1,12 +1,12 @@
-import TopicMonitor from "./TopicMonitor";
+import NavLogger from "./NavLogger";
 import ExitButton from "./ExitButton";
 
 function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Farm-ng Monitor</h1>
-        <TopicMonitor />
+        <h1>NavLogger</h1>
+        <NavLogger />
       </header>
       <ExitButton />
     </div>
