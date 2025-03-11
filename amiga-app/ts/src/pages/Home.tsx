@@ -1,4 +1,4 @@
-import { Button } from "@mui/material";
+import { Button, Container, Paper } from "@mui/material";
 import '../App.css'
 import ExitButton from '../components/ExitButton'
 import { useNavigate } from "react-router";
@@ -8,20 +8,24 @@ export default function Home() {
     let handleClick = () => {
         navigate("/PathSelect")
     }
+    let paperPadding = "70px";
     return (
         <>
-            <div style={{ height: "100vh", width: "100vw" }}>
-                <ExitButton/>
-                <center style={{ transform: "translateY(65px)" }}>
-                    <h1 style={{ fontSize: "60px" }}>NavLogger</h1>
+            <ExitButton/>
+            <Container>
+                <center>
+                    <Paper style={{width: "80%", paddingBottom: paperPadding, paddingTop: paperPadding}}>
+                        <h1 style={{ fontSize: "60px", paddingBottom: paperPadding}}>NavLogger</h1>
+                        <div style={{ display: "flex", justifyContent: "center", marginTop: "0%" }}>
+                            <div>
+                                <Button variant="contained" id="navButton" onClick={handleClick} >Path Select</Button>
+                                <Button variant="contained" id="navButton">View Crop Yield</Button>
+                            </div>
+                        </div>
+                    </Paper>
                 </center>
-                <div style={{ display: "flex", justifyContent: "center", marginTop: "15%" }}>
-                    <div>
-                        <Button variant="contained" id="navButton" onClick={handleClick} >Path Select</Button>
-                        <Button variant="contained" id="navButton">View Crop Yield</Button>
-                    </div>
-                </div>
-            </div>
+            </Container>
+            {/*</div>*/}
         </>
 
     )

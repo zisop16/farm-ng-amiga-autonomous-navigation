@@ -1,5 +1,12 @@
+import BackButton from "../components/BackButton";
+import ExitButton from "../components/ExitButton";
+
 export default function PathSelect() {
     return (
-        <p>Path Select</p>
+        <>
+            <div style={{ height: "100vh", width: "100vw" }}>
+                <BackButton/>
+            </div>
+        </>
     )
 }
