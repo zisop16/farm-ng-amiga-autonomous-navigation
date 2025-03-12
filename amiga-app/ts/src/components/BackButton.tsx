@@ -9,7 +9,7 @@ export default function BackButton() {
     return (
         <Button
             variant="contained"
-            style={{ margin: "30px 0 0 30px", width: "100px", fontSize: "30px" }}
+            style={{ width: "100px", fontSize: "30px" }}
             onClick={handleClick}
         >
             ⬅
