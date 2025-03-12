@@ -18,11 +18,24 @@ from fastapi.staticfiles import StaticFiles
 from google.protobuf.json_format import MessageToJson
 from contextlib import asynccontextmanager
 import os
+from pathlib import Path
 import json
+##added
+
+import asyncio
+from pathlib import Path
+from fastapi import HTTPException
+
+from farm_ng.core.event_client import EventClient
+from farm_ng.core.event_service_pb2 import EventServiceConfig
+from farm_ng.core.events_file_reader import proto_from_json_file
+from farm_ng.core.events_file_writer import proto_to_json_file
+from farm_ng.core.pose_pb2 import Pose
+from farm_ng.track.track_pb2 import Track
+from google.protobuf.empty_pb2 import Empty
 
 # Path to the GPS logging script
-NAV_LOGGER_SCRIPT = "main.py"
-SERVICE_CONFIG_PATH = "gps_service_config.json"
+SERVICE_CONFIG_PATH = "/mnt/managed_home/farm-ng-user-munir-khan/farm-ng-amiga-autonomous-navigation/amiga-app/service_config.json"
 
 # Global process handler for Nav Logger
 gps_logging_process: Optional[subprocess.Popen] = None
@@ -52,55 +65,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ### ✅ GPS Logger API ###
-# @app.post("/start_nav_logger")
-# async def start_nav_logger(background_tasks: BackgroundTasks) -> JSONResponse:
-#     """Starts the GPS navigation logger process."""
-#     global gps_logging_process
-
-#     if gps_logging_process and gps_logging_process.poll() is None:
-#         return JSONResponse(content={"message": "Nav Logger is already running!"}, status_code=400)
-
-#     gps_logging_process = subprocess.Popen(
-#         ["python", NAV_LOGGER_SCRIPT, "--service-config", SERVICE_CONFIG_PATH],
-#         stdout=subprocess.PIPE,
-#         stderr=subprocess.PIPE
-#     )
-
-#     return JSONResponse(content={"message": "Nav Logger started successfully!"}, status_code=200)
-
-# @app.get("/stop_nav_logger")
-# async def stop_nav_logger() -> JSONResponse:
-#     """Stops the GPS navigation logger process."""
-#     global gps_logging_process
-
-#     if gps_logging_process and gps_logging_process.poll() is None:
-#         gps_logging_process.terminate()
-#         gps_logging_process = None
-#         return JSONResponse(content={"message": "Nav Logger stopped."}, status_code=200)
-
-#     return JSONResponse(content={"message": "Nav Logger is not running."}, status_code=400)
-
-# @app.get("/logger_status")
-# async def logger_status() -> JSONResponse:
-#     """Returns the status of the Nav Logger."""
-#     global gps_logging_process
-#     if gps_logging_process and gps_logging_process.poll() is None:
-#         return JSONResponse(content={"status": "running"}, status_code=200)
-#     return JSONResponse(content={"status": "stopped"}, status_code=200)
-
-# @app.get("/get_gps_log")
-# async def get_gps_log() -> JSONResponse:
-#     """Retrieve the logged GPS coordinates."""
-#     log_file_path = "coordinates.txt"
-
-#     if not Path(log_file_path).exists():
-#         return JSONResponse(content={"message": "No GPS log available"}, status_code=404)
-
-#     with open(log_file_path, "r") as log_file:
-#         coordinates = log_file.readlines()
-
-#     return JSONResponse(content={"gps_coordinates": coordinates}, status_code=200)
 
 
 
@@ -147,34 +111,103 @@ async def get_coordinates_file():
         "cords": text
     }
 
+###
+@app.post("/record/{track_name}")
+async def start_recording(track_name: str):
+    """Starts recording a track using the filter service client."""
+    output_dir = TRACKS_DIR  # Using existing track directory
+    service_config_path = Path(SERVICE_CONFIG_PATH)  # Ensure this is correctly set
+
+    if not service_config_path.exists():
+        raise HTTPException(status_code=500, detail="Service configuration file not found.")
+
+    # Run the recording as an async task to avoid blocking the API
+    asyncio.create_task(record_track(service_config_path, track_name, output_dir))
+
+    return {"message": f"Recording started for track '{track_name}'."}
+
+
+from google.protobuf.json_format import ParseDict
+
+from pathlib import Path
+
+async def record_track(service_config_path: Path, track_name: str, output_dir: str) -> None:
+    """Runs the filter service client to record a track."""
+    import json
+
+    # Convert `output_dir` to a Path object
+    output_dir = Path(output_dir)
+
+    # Ensure the output directory exists
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load the service configuration
+    with open(service_config_path, "r") as f:
+        service_configs = json.load(f)
+
+    # Extract the "filter" service configuration
+    if isinstance(service_configs, list):
+        filter_config_dict = next((cfg for cfg in service_configs if cfg["name"] == "filter"), None)
+    else:
+        filter_config_dict = service_configs if service_configs["name"] == "filter" else None
+
+    if not filter_config_dict:
+        raise HTTPException(status_code=500, detail="Filter service configuration not found.")
+
+    # Convert dictionary to protobuf format
+    from google.protobuf.json_format import ParseDict
+    config: EventServiceConfig = EventServiceConfig()
+    ParseDict(filter_config_dict, config)  # 🔹 Fix: Define `config`
+
+    # Clear the track so everything going forward is tracked
+    print(f"Sending /clear_track request to {config.host}:{config.port}")
+    await EventClient(config).request_reply("/clear_track", Empty())
+
+    # Create a Track message
+    track = Track()
+
+    # Subscribe to the filter track topic
+    async for event, message in EventClient(config).subscribe(config.subscriptions[0], decode=True):
+        print("Adding to track:", message)
+
+        next_waypoint = track.waypoints.add()
+        next_waypoint.CopyFrom(message)
+
+        track_file = output_dir / f"{track_name}.json"
+        if not proto_to_json_file(track_file, track):
+            raise RuntimeError(f"Failed to write Track to {track_file}")
+
+        print(f"Saved track of length {len(track.waypoints)} to {track_file}")
+
+
+
+
+
+###Follow a Track ###
+@app.get("/follow/{track_name}")
+async def follow_track(track_name: str):
+    """Instructs the robot to follow an existing recorded track."""
+    track_path = TRACKS_DIR / f"{track_name}.json"
+    service_config_path = Path(SERVICE_CONFIG_PATH)
+
+    if not track_path.exists():
+        raise HTTPException(status_code=404, detail=f"Track '{track_name}' not found.")
+
+    config: EventServiceConfig = proto_from_json_file(service_config_path, EventServiceConfig())
+    track: Track = proto_from_json_file(track_path, Track())
+
+    await EventClient(config).request_reply("/set_track", TrackFollowRequest(track=track))
+    await EventClient(config).request_reply("/start", Empty())
+
+    return {"message": f"Following track '{track_name}'."}
+
+
+###
 
 
 ### ✅ Static File Serving ###
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--config", type=Path, required=True, help="config file")
-    # parser.add_argument("--port", type=int, default=8042, help="port to run the server")
-    # parser.add_argument("--debug", action="store_true", help="debug mode")
-    # args = parser.parse_args()
 
-    # if not args.debug:
-    #     react_build_directory = Path(__file__).parent / "ts" / "dist"
-    #     app.mount(
-    #         "/static",
-    #         StaticFiles(directory=str(react_build_directory.resolve()), html=True),
-    #     )
-
-    # Initialize event manager properly
-    # base_config_list: EventServiceConfigList = proto_from_json_file(
-    #     args.config, EventServiceConfigList()
-    # )
-
-    # service_config_list = EventServiceConfigList()
-    # for config in base_config_list.configs:
-    #     if config.port == 0:
-    #         continue
-    #     service_config_list.configs.append(config)
-
-    # event_manager = EventClientSubscriptionManager(config_list=service_config_list)
     port = 8000
     uvicorn.run(app, host="0.0.0.0", port=port)
+
