@@ -2,7 +2,7 @@ import { Button } from "@mui/material";
 import { useNavigate } from "react-router";
 
 export default function BackButton() {
-    let navigate = useNavigate();
+    const navigate = useNavigate();
     function handleClick() {
         navigate("/");
     }
