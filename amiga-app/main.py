@@ -31,7 +31,10 @@ from farm_ng.core.event_service_pb2 import EventServiceConfig
 from farm_ng.core.events_file_reader import proto_from_json_file
 from farm_ng.core.events_file_writer import proto_to_json_file
 from farm_ng.core.pose_pb2 import Pose
-from farm_ng.track.track_pb2 import Track
+from farm_ng.track.track_pb2 import (
+    Track,
+    TrackFollowRequest,
+)
 from google.protobuf.empty_pb2 import Empty
 
 # Path to the GPS logging script
@@ -187,21 +190,43 @@ async def record_track(service_config_path: Path, track_name: str, output_dir: s
 @app.get("/follow/{track_name}")
 async def follow_track(track_name: str):
     """Instructs the robot to follow an existing recorded track."""
-    track_path = TRACKS_DIR / f"{track_name}.json"
+    track_path = Path(TRACKS_DIR) / f"{track_name}.json"
     service_config_path = Path(SERVICE_CONFIG_PATH)
 
     if not track_path.exists():
         raise HTTPException(status_code=404, detail=f"Track '{track_name}' not found.")
 
-    config: EventServiceConfig = proto_from_json_file(service_config_path, EventServiceConfig())
+    # Load the service configuration
+    with open(service_config_path, "r") as f:
+        service_configs = json.load(f)
+
+    # Find the "track_follower" configuration
+    target_cfg = None
+    for cfg in service_configs:
+        if cfg.get("name") == "track_follower":
+            target_cfg = cfg
+            break
+
+    if target_cfg is None:
+        raise HTTPException(status_code=500, detail="Track follower configuration not found.")
+
+    config: EventServiceConfig = ParseDict(target_cfg, EventServiceConfig())
     track: Track = proto_from_json_file(track_path, Track())
 
-    await EventClient(config).request_reply("/set_track", TrackFollowRequest(track=track))
-    await EventClient(config).request_reply("/start", Empty())
+    try:
+        await EventClient(config).request_reply("/set_track", TrackFollowRequest(track=track))
+    except asyncio.exceptions.TimeoutError:
+        return {"success": False, "message": "Failed to call /set_track"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
 
-    return {"message": f"Following track '{track_name}'."}
+    try:
+        await EventClient(config).request_reply("/start", Empty())
+    except asyncio.exceptions.TimeoutError:
+        return {"success": False, "message": "Failed to call /start"}
 
-
+    return {"sucess": True, "message": f"Following track '{track_name}'."}
+    
 ###
 
 
