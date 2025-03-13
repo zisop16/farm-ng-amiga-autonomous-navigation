@@ -1,7 +1,7 @@
 import { Box, IconButton, List, ListItem, ListItemButton, ListItemText, Modal, Typography } from "@mui/material";
 import DeleteIcon from '@mui/icons-material/Delete';
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 const modalStyle = {
 	position: 'absolute',
@@ -24,7 +24,21 @@ interface TrackSelectProps {
 
 export default function TrackSelectModal(props: TrackSelectProps) {
 
-	const trackNames = ["track1", "track2"];
+	const [trackNames, setTrackNames] = useState([""]);
+
+	function fetchTrackNames(): void {
+		setTrackNames(["track1", "track2"]);
+	}
+
+	function removeTrack(tName: string): void {
+		let trackInd = trackNames.indexOf(tName);
+		let newTrackNames = trackNames;
+		delete newTrackNames[trackInd];
+		setTrackNames(newTrackNames);
+	}
+
+	useEffect(fetchTrackNames, []);
+
 	return (
 		<>
 			<Modal
@@ -41,13 +55,13 @@ export default function TrackSelectModal(props: TrackSelectProps) {
 					{ trackNames.map((tName: string) => {
 						return <ListItem
 							secondaryAction={
-								<IconButton edge="end" aria-label="delete" sx={{p: 1}}>
+								<IconButton edge="end" aria-label="delete" sx={{p: 1}} onClick={() => removeTrack(tName)}>
 									<DeleteIcon sx={{fontSize: 45}}/>
 								</IconButton>
 							}
 							disablePadding
 						>
-							<ListItemButton>
+							<ListItemButton onClick={() => props.setTrack(tName)}>
 								<ListItemText primary={tName}/>
 							</ListItemButton>
 						</ListItem>
