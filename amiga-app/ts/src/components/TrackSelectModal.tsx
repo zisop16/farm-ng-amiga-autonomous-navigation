@@ -35,10 +35,14 @@ export default function TrackSelectModal(props: TrackSelectProps) {
 		setTrackNames(["track1", "track2"]);
 	}
 
-	function removeTrack(tName: string): void {
+    function removeTrack(tName: string): void {
         setTrackNames(prevTrackNames => prevTrackNames.filter(track => track !== tName));
-	}
 
+        if (tName === props.currentTrack) {
+            props.setTrack("");
+        }
+    }
+	
     function startEditing(tName:string): void {
         setEditingTrack(tName);
         setEditedName(tName);
