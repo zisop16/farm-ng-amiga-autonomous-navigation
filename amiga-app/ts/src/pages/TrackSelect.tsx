@@ -1,4 +1,4 @@
-import { Button, Grid2, LinearProgress, Stack, Tab, Tabs, Typography } from "@mui/material";
+import { Button, Collapse, Container, Grid2, LinearProgress, Stack, Tab, Tabs, Typography } from "@mui/material";
 import BackButton from "../components/BackButton";
 import CameraFeed from "../components/CameraFeed";
 import React, { useEffect } from "react";
@@ -9,11 +9,9 @@ export default function TrackSelect() {
     const [tabValue, setTabValue] = React.useState(1);
     const [currentCamera, setCurrentCamera] = React.useState("center");
     const [trackName, setTrackName] = React.useState("");
+    const [selectedButton, changeSelectedButton] = React.useState("select");
 
-    const [trackSelectOpen, setTrackSelectOpen] = React.useState(false);
-
-    const openTrackSelect = () => setTrackSelectOpen(true);
-    const closeTrackSelect = () => setTrackSelectOpen(false);
+    const openTrackSelect = () => { changeSelectedButton("select")}
     const setTrack = (tName: string) => setTrackName(tName);
 
     const navigate = useNavigate();
@@ -37,21 +35,34 @@ export default function TrackSelect() {
 
     }
 
+    function getMenuComponent() {
+        switch(selectedButton) {
+            case "add":
+                return (<TrackSelectModal currentTrack={trackName} setTrack={setTrack}/>)
+            case "select":
+                return (<TrackSelectModal currentTrack={trackName} setTrack={setTrack}/>)
+            case "run":
+                return (<TrackSelectModal currentTrack={trackName} setTrack={setTrack}/>)
+            default:
+                return (<></>)
+
+        }
+    }
+
     const handleCameraTabChange = (event: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue);
         setCurrentCamera(event.currentTarget.id);
     };
 
     const buttonStyle = {
-        width: "500px",
+        width: "150px",
         height: "130px",
         borderRadius: "4px"
     };
 
     return (
         <>
-            <TrackSelectModal open={trackSelectOpen} closeTrackSelect={closeTrackSelect} currentTrack={trackName} setTrack={setTrack}/>
-            <Grid2 container rowSpacing={2} style={{ margin: "30px 0 0 30px" }} >
+            <Grid2 container rowSpacing={2} style={{ margin: "30px 30px 0 30px" }} >
                 <Grid2 size={1} display="flex" justifyContent="center" alignItems="center">
                     <BackButton />
                 </Grid2>
@@ -60,7 +71,7 @@ export default function TrackSelect() {
                 </Grid2>
                 <Grid2 size="grow" />
 
-                <Grid2 size={12}>
+                <Grid2 size={6}>
                     <div style={{ width: "640px" }}>
                         <Tabs value={tabValue} onChange={handleCameraTabChange} variant="fullWidth">
                             <Tab label=<Typography>Left Camera</Typography> id="left" />
@@ -68,25 +79,27 @@ export default function TrackSelect() {
                             <Tab label=<Typography>Right Camera</Typography> id="right" />
                         </Tabs>
                     </div>
+                <CameraFeed orientation={currentCamera} />
                 </Grid2>
 
-                <CameraFeed orientation={currentCamera} />
+                <Grid2 size={.6} />
 
-                <Grid2 size={.3} />
+                <Grid2 size={5.4}>
+                        <Container style={{display:"flex", justifyContent:"space-between", padding:"0px"}}>
+                            <Button variant="contained" style={buttonStyle} onClick={() => changeSelectedButton("add")} color={selectedButton==="add" ? "secondary" : "primary"}>
+                                <Typography variant="h5">Add New Track</Typography>
+                            </Button>
+                            <Button variant="contained" style={buttonStyle} onClick={() => changeSelectedButton("select")} color={selectedButton==="select" ? "secondary" : "primary"}>
+                                <Typography variant="h5" >Select Track</Typography>
+                            </Button>
+                            <Button variant="contained" style={buttonStyle} onClick={() => changeSelectedButton("run")} color={selectedButton==="run" ? "secondary" : "primary"}>
+                                <Typography variant="h5">Run Track</Typography>
+                            </Button>
 
-                <Grid2 size="auto">
-                    <Stack rowGap={1} spacing="auto" sx={{ flexGrow: 1, justifyContent: 'space-between', height: '100%' }}>
-                        <Button variant="contained" style={buttonStyle} onClick={() => navigate("/TrackCreate")}>
-                            <Typography variant="h5">Add New Track</Typography>
+                        </Container>
 
-                        </Button>
-                        <Button variant="contained" style={buttonStyle} onClick={runTrack}>
-                            <Typography variant="h5">Run Track</Typography>
-                        </Button>
-                        <Button variant="contained" style={buttonStyle} onClick={openTrackSelect}>
-                            <Typography variant="h5">View Tracks</Typography>
-                        </Button>
-                    </Stack>
+                        {getMenuComponent()}
+                        
                 </Grid2>
 
                 <Grid2 size="grow" />
