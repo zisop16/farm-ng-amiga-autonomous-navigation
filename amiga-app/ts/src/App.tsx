@@ -3,6 +3,7 @@ import './App.css'
 import Home from './pages/Home'
 import TrackSelect from './pages/TrackSelect'
 import ViewCropYield from "./pages/ViewCropYield";
+import TrackCreate from "./pages/TrackCreate";
 
 function App() {
 
@@ -12,6 +13,7 @@ function App() {
                 <Route path="/" element={<Home />}/>
                 <Route path="/TrackSelect" element={<TrackSelect />}/>
                 <Route path="/ViewCropYield" element={<ViewCropYield />}/>
+                <Route path="/TrackCreate" element={<TrackCreate />}/>
             </Routes>
         </BrowserRouter>
     )
