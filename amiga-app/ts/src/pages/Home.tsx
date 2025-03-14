@@ -5,8 +5,8 @@ import { useNavigate } from "react-router";
 
 export default function Home() {
     let navigate = useNavigate()
-    let handleClick = () => {
-        navigate("/TrackSelect")
+    let changePage = (newPage: string) => {
+        navigate(newPage)
     }
 
     return (
@@ -22,11 +22,11 @@ export default function Home() {
                     <center>
                         <div style={{ display: "flex", justifyContent: "center", marginTop: "0%" }}>
                             <div>
-                                <Button variant="contained" id="navButton" onClick={handleClick} >
+                                <Button variant="contained" id="navButton" onClick={() => { changePage("/TrackSElect") }} >
                                     <Typography variant="h5">Track Select</Typography>
 
                                 </Button>
-                                <Button variant="contained" id="navButton">
+                                <Button variant="contained" id="navButton" onClick={() => { changePage("/ViewCropYield") }} >
                                     <Typography variant="h5">View Crop Yield</Typography>
                                 </Button>
                             </div>

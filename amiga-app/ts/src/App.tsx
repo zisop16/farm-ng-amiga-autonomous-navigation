@@ -1,19 +1,17 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
 import './App.css'
 import Home from './pages/Home'
 import TrackSelect from './pages/TrackSelect'
+import ViewCropYield from "./pages/ViewCropYield";
 
 function App() {
 
     return (
         <BrowserRouter>
             <Routes>
-                <Route path="/" element={<Home />}> 
-                </Route>
-                <Route path="/TrackSelect" element={<TrackSelect />}>
-                </Route>
+                <Route path="/" element={<Home />}/>
+                <Route path="/TrackSelect" element={<TrackSelect />}/>
+                <Route path="/ViewCropYield" element={<ViewCropYield />}/>
             </Routes>
         </BrowserRouter>
     )
