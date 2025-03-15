@@ -8,7 +8,7 @@ import { useNavigate } from "react-router";
 export default function TrackSelect() {
     const [tabValue, setTabValue] = React.useState(1);
     const [currentCamera, setCurrentCamera] = React.useState("center");
-    const [trackName, setTrackName] = React.useState("");
+    const [trackName, setTrackName] = React.useState([]);
     const [selectedButton, changeSelectedButton] = React.useState("select");
 
     const openTrackSelect = () => { changeSelectedButton("select")}
@@ -19,17 +19,24 @@ export default function TrackSelect() {
     useEffect(() => {
             const storedTrack = localStorage.getItem("trackName");
             if (storedTrack !== null) {
-                const asStr = JSON.parse(storedTrack);
-                if (asStr !== "") {
-                    setTrackName(asStr);
-                }
+                setTrackName(JSON.parse(storedTrack));
+                // const asStr = JSON.parse(storedTrack);
+                // if (asStr !== "") {
+                //     setTrackName(asStr);
+                // }
             }
         }, []);
 
-    useEffect(() => {
-        localStorage.setItem('trackName', JSON.stringify(trackName));
-      }, [trackName]
-    );
+
+    // useEffect(() => {
+    //     console.log("trackName %s", trackName);
+    //     localStorage.setItem('trackName', JSON.stringify(trackName));
+    //   }, [trackName]
+    // );
+    
+    const addTrack = (newTrack: string) => {
+        setTrackName((prevTracks) => [...prevTracks, newTrack]);
+    };
 
     function runTrack() {
 

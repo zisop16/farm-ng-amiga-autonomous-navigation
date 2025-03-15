@@ -1,4 +1,4 @@
-import { Box, IconButton, List, ListItem, ListItemButton, ListItemText, Modal, Typography, TextField } from "@mui/material";
+import { Box, IconButton, List, ListItem, ListItemButton, ListItemText, Modal, Typography, TextField, Button } from "@mui/material";
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
@@ -24,17 +24,54 @@ interface TrackSelectProps {
 
 export default function TrackSelectModal(props: TrackSelectProps) {
 
-	const [trackNames, setTrackNames] = useState([""]);
+	const [trackNames, setTrackNames] = useState([]);
     const [editingTrack, setEditingTrack] = useState<string | null>(null);
     const [editedName, setEditedName] = useState("");
     const [error, setError] = useState(false);
-
+    
 	function fetchTrackNames(): void {
-		setTrackNames(["track1", "track2"]);
+    const storedTrack = localStorage.getItem("trackNames");
+        const trackArray = storedTrack ? JSON.parse(storedTrack) : null;
+
+        if (!trackArray || trackArray.length === 0) {
+            setTrackNames(["track1", "track2"]);
+            localStorage.setItem("trackNames", JSON.stringify(["track1", "track2"]));
+        } else {
+            setTrackNames(trackArray);
+        }
+        /*
+        localStorage.clear();
+        const storedTrack = localStorage.getItem("trackNames");
+        const trackArray = JSON.parse(storedTrack);
+        console.log("fetchTrackNames: trackArray ...%s,,,", trackArray);
+        // if (storedTrack === null) {
+//        if (storedTrack.length == 0) {
+        if ((trackArray === null) || (trackArray.length == 0)) {
+            console.log("fetchTrackNames: calling setTrackNames");
+		    setTrackNames(["track1", "track2"]);
+        }
+        else {
+            console.log("fetchTrackNames: else storedTrack %s", storedTrack);
+            setTrackNames(JSON.parse(storedTrack));
+            // if (storedTrack !== null) {
+            //     const asStr = JSON.parse(storedTrack);
+            //     console.log("fetchTrackNames: asStr %s", asStr);
+            //     if (asStr !== "") {
+            //         setTrackNames(asStr);
+            //         console.log("fetchTrackNames: trackNames %s", trackNames);
+            //     }
+            // }
+        }
+       */
 	}
 
+
     function removeTrack(tName: string): void {
-        setTrackNames(prevTrackNames => prevTrackNames.filter(track => track !== tName));
+       setTrackNames(prevTrackNames => {
+            const updatedTracks = prevTrackNames.filter(track => track !== tName);
+            localStorage.setItem("trackNames", JSON.stringify(updatedTracks)); // Update local storage
+            return updatedTracks;
+        });
 
         if (tName === props.currentTrack) {
             props.setTrack("");
@@ -49,6 +86,7 @@ export default function TrackSelectModal(props: TrackSelectProps) {
 
     function saveTrackName(oldName: string): void {
         const trimmedName = editedName.trim();
+        console.log("saveTrackName: trimmedName ...%s... oldName %s", trimmedName, oldName);
 
         if (!trimmedName || (trimmedName !== oldName && trackNames.includes(trimmedName))) {
             setError(true);
@@ -57,14 +95,33 @@ export default function TrackSelectModal(props: TrackSelectProps) {
             return;
         }
 
-        setTrackNames(prevTrackNames =>
-            prevTrackNames.map(track => (track === oldName ? trimmedName : track))
-        );
+        // setTrackNames(trackNames =
+        //     trackNames.map(track => (track === oldName ? trimmedName : track))
+        // );
+        const newTrackNames = trackNames.map((t, i) => {
+            if (t === oldName) {
+                return trimmedName;
+            } else {
+                return t;
+            }
+        });
+        console.log("saveTrackName: newTrackNames ...%s...", newTrackNames);
+        setTrackNames(newTrackNames);
+        console.log("saveTrackName: trackNames ...%s...", trackNames);
+        localStorage.setItem('trackNames', JSON.stringify(newTrackNames));
+
+        if (props.currentTrack === oldName) {
+                props.setTrack(trimmedName);
+            }
+            
+
         setEditingTrack(null);
         setError(false);
     }
 
+
 	useEffect(fetchTrackNames, []);
+
 
 	return (
 		<>
@@ -112,7 +169,7 @@ export default function TrackSelectModal(props: TrackSelectProps) {
                         </ListItem>
                     })}
                 </List>
-                </Box>
+            </Box>
         </>
     );
 }
