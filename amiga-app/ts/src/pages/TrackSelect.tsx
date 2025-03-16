@@ -1,11 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Button, Collapse, Container, Grid2, LinearProgress, Stack, Tab, Tabs, Typography } from "@mui/material";
 import BackButton from "../components/BackButton";
 import CameraFeed from "../components/CameraFeed";
 import React, { useEffect } from "react";
 import TrackSelectMenu from "../components/TrackSelectMenu";
 import TrackCreateMenu from "../components/TrackCreateMenu";
-// import { useNavigate } from "react-router";
 
 export default function TrackSelect() {
     const [tabValue, setTabValue] = React.useState(1);
@@ -14,8 +12,6 @@ export default function TrackSelect() {
     const [selectedButton, changeSelectedButton] = React.useState("select");
 
     const setTrack = (tName: string) => setTrackName(tName);
-
-    // const navigate = useNavigate();
 
     useEffect(() => {
             const storedTrack = localStorage.getItem("trackName");
@@ -27,7 +23,7 @@ export default function TrackSelect() {
     function getMenuComponent() {
         switch(selectedButton) {
             case "add":
-                return <TrackCreateMenu />;
+                return <TrackCreateMenu setTrack={setTrack} />;
             case "select":
                 return (<TrackSelectMenu currentTrack={trackName} setTrack={setTrack}/>);
             case "run":
@@ -106,3 +102,4 @@ export default function TrackSelect() {
         </>
     );
 }
+
