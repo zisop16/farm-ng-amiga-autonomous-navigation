@@ -4,10 +4,7 @@ import ExitButton from '../components/ExitButton'
 import { useNavigate } from "react-router";
 
 export default function Home() {
-    let navigate = useNavigate()
-    let changePage = (newPage: string) => {
-        navigate(newPage)
-    }
+    const navigate = useNavigate()
 
     return (
         <>
@@ -22,11 +19,10 @@ export default function Home() {
                     <center>
                         <div style={{ display: "flex", justifyContent: "center", marginTop: "0%" }}>
                             <div>
-                                <Button variant="contained" id="navButton" onClick={() => { changePage("/TrackSElect") }} >
+                                <Button variant="contained" id="navButton" onClick={() => { navigate("/TrackSelect") }} >
                                     <Typography variant="h5">Track Select</Typography>
-
                                 </Button>
-                                <Button variant="contained" id="navButton" onClick={() => { changePage("/ViewCropYield") }} >
+                                <Button variant="contained" id="navButton" onClick={() => { navigate("/ViewCropYield") }} >
                                     <Typography variant="h5">View Crop Yield</Typography>
                                 </Button>
                             </div>

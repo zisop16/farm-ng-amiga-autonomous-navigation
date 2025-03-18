@@ -1,14 +1,9 @@
-import { Box, IconButton, List, ListItem, ListItemButton, ListItemText, TextField, Button } from "@mui/material";
+import { Box, IconButton, List, ListItem, ListItemButton, ListItemText, TextField, Button, Typography } from "@mui/material";
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 
 import React, { useEffect, useState } from "react";
-
-const modalStyle = {
-    bgcolor: 'background.paper',
-    p: 4,
-};
 
 interface TrackSelectProps {
     currentTrack: string,
@@ -19,13 +14,14 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     const [trackNames, setTrackNames] = useState<string[]>([""]);
     const [editingTrack, setEditingTrack] = useState<string | null>(null);
     const [editedName, setEditedName] = useState<string>("");
-    const [error, setError] = useState(false);
+    // The string should be equal to the name which was duplicated, whenever this error is active
+    const [duplicateNameError, setDuplicateNameError] = useState("");
     
     function fetchTrackNames(): void {
         const storedTrack = localStorage.getItem("trackNames");
         const trackArray = storedTrack ? JSON.parse(storedTrack) : null;
 
-        if (!trackArray || trackArray.length === 0) {
+        if (trackArray === null || trackArray.length === 0) {
             setTrackNames(["track1", "track2"]);
             localStorage.setItem("trackNames", JSON.stringify(["track1", "track2"]));
         } else {
@@ -48,15 +44,14 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     function startEditing(tName: string): void {
         setEditingTrack(tName);
         setEditedName(tName);
-        setError(false);
+        setDuplicateNameError("");
     }
 
     function saveTrackName(oldName: string): void {
         const trimmedName = editedName.trim();
-        console.log("saveTrackName: trimmedName ...%s... oldName %s", trimmedName, oldName);
 
         if (!trimmedName || (trimmedName !== oldName && trackNames.includes(trimmedName))) {
-            setError(true);
+            setDuplicateNameError(trimmedName);
             setEditedName(oldName);
             return;
         }
@@ -68,9 +63,8 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
                 return t;
             }
         });
-        console.log("saveTrackName: newTrackNames ...%s...", newTrackNames);
+
         setTrackNames(newTrackNames);
-        console.log("saveTrackName: trackNames ...%s...", trackNames);
         localStorage.setItem('trackNames', JSON.stringify(newTrackNames));
 
         if (props.currentTrack === oldName) {
@@ -78,13 +72,27 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
         }
 
         setEditingTrack(null);
-        setError(false);
+        setDuplicateNameError("");
     }
 
     useEffect(fetchTrackNames, []);
 
+    const iconStyle = {
+        fontSize: 45
+    };
+
+    const boxStyle = {
+        bgcolor: "#cce7eb",
+        p: 4,
+        margin: "20px 0 0 0",
+        boxShadow: 24,
+    };
+
     return (
-        <Box sx={modalStyle}>
+        <Box sx={boxStyle}>
+            <Typography variant="h4">
+                Available Tracks:
+            </Typography>
             <List id="track-modal-description">
                 {trackNames.map((tName: string) => {
                     return (
@@ -93,15 +101,15 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
                                 <>
                                     {editingTrack === tName ? (
                                         <IconButton edge="end" aria-label="rename" sx={{ p: 1 }} onClick={() => saveTrackName(tName)}>
-                                            <CheckIcon sx={{ fontSize: 45 }} />
+                                            <CheckIcon sx={iconStyle} />
                                         </IconButton>
                                     ) : (
                                         <IconButton edge="end" aria-label="rename" sx={{ p: 1 }} onClick={() => startEditing(tName)}>
-                                            <EditIcon sx={{ fontSize: 45 }} />
+                                            <EditIcon sx={iconStyle} />
                                         </IconButton>
                                     )}
                                     <IconButton edge="end" aria-label="delete" sx={{ p: 1 }} onClick={() => removeTrack(tName)}>
-                                        <DeleteIcon sx={{ fontSize: 45 }} />
+                                        <DeleteIcon sx={iconStyle} />
                                     </IconButton>
                                 </>
                             }
@@ -112,12 +120,18 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
                                     value={editedName}
                                     onChange={(e) => {
                                         setEditedName(e.target.value);
-                                        setError(false);
+                                        setDuplicateNameError("");
                                     }}
-                                    onKeyDown={(e) => e.key === "Enter" && saveTrackName(tName)}
+                                    onKeyDown={
+                                        (event) => {
+                                            if (event.key === "Enter") {
+                                                saveTrackName(tName);
+                                            }
+                                        }
+                                    }
                                     onBlur={() => saveTrackName(tName)}
-                                    error={error}
-                                    helperText={error ? `Track name: ${editingTrack} already exists.` : ""}
+                                    error={duplicateNameError !== ""}
+                                    helperText={duplicateNameError ? `Track name: ${duplicateNameError} already exists.` : ""}
                                     autoFocus
                                     fullWidth
                                 />
