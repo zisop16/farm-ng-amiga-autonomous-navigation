@@ -58,9 +58,9 @@ export default function TrackSelect() {
                 <Grid2 size={6}>
                     <div style={{ width: "640px" }}>
                         <Tabs value={tabValue} onChange={handleCameraTabChange} variant="fullWidth">
-                            <Tab label=<Typography>Left Camera</Typography> id="left" />
-                            <Tab label=<Typography>Center Camera</Typography> id="center" />
-                            <Tab label=<Typography>Right Camera</Typography> id="right" />
+                            <Tab label={<Typography>Left Camera</Typography>} id="left" />
+                            <Tab label={<Typography>Center Camera</Typography>} id="center" />
+                            <Tab label={<Typography>Right Camera</Typography>} id="right" />
                         </Tabs>
                     </div>
                 <CameraFeed orientation={currentCamera} />

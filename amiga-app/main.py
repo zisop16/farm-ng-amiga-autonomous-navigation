@@ -124,11 +124,15 @@ async def subscribe(
     await websocket.close()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=Path, required=True, help="config file")
-    parser.add_argument("--port", type=int, default=8042, help="port to run the server")
-    parser.add_argument("--debug", action="store_true", help="debug mode")
-    args = parser.parse_args()
+
+    class Arguments:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+    args=Arguments(
+        config="/opt/farmng/config.json",
+        port=8042,
+        debug=False
+    )
 
     # NOTE: we only serve the react app in debug mode
     if not args.debug:
@@ -138,7 +142,6 @@ if __name__ == "__main__":
             "/",
             StaticFiles(directory=str(react_build_directory.resolve()), html=True),
         )
-
     # config with all the configs
     base_config_list: EventServiceConfigList = proto_from_json_file(
         args.config, EventServiceConfigList()
