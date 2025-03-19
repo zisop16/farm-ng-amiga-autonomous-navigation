@@ -183,6 +183,7 @@ async def record_track(service_config_path: Path, track_name: str, output_dir: P
 
     print("Recording task completed.")
 ###stop###
+@app.post("/stop_recording")
 async def stop_recording():
     """Stops the recording process."""
     global recording_active
