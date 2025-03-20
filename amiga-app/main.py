@@ -76,7 +76,7 @@ app.add_middleware(
 
 
 # Directory where track JSON files are stored
-TRACKS_DIR = "/mnt/managed_home/farm-ng-user-munir-khan/farm-ng-amiga-autonomous-navigation/amiga-app/tracks"
+TRACKS_DIR = os.getcwd() + "/../tracks/"
 
 @app.get("/list_tracks")
 async def list_tracks():
