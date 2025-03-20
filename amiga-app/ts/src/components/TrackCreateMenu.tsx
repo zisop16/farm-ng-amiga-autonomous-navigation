@@ -1,12 +1,11 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import { Grid, LinearProgress, Typography, TextField, Button, Grid2, Box } from "@mui/material";
+import { LinearProgress, Typography, TextField, Button, Grid2, Box } from "@mui/material";
 import React, { useState } from "react";
 
-interface CameraFeedProps {
+interface TrackCreateProps {
     setTrack: (trackName: string) => void,
 };
 
-export default function TrackCreateMenu(props: CameraFeedProps) {
+export default function TrackCreateMenu(props: TrackCreateProps) {
     const [newTrackName, setNewTrackName] = useState("");
     // This variable will store the track name entered which caused duplicate error
     const [duplicateTrackError, setDuplicateTrackError] = useState("");

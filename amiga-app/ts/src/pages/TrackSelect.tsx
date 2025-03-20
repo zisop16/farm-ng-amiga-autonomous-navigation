@@ -4,30 +4,48 @@ import CameraFeed from "../components/CameraFeed";
 import React, { useEffect } from "react";
 import TrackSelectMenu from "../components/TrackSelectMenu";
 import TrackCreateMenu from "../components/TrackCreateMenu";
+import { JsonView } from "react-json-view-lite";
+import TrackRunMenu from "../components/TrackRunMenu";
 
 export default function TrackSelect() {
     const [tabValue, setTabValue] = React.useState(1);
     const [currentCamera, setCurrentCamera] = React.useState("center");
-    const [trackName, setTrackName] = React.useState("");
+    const [selectedTrack, setSelectedTrack] = React.useState("");
     const [selectedButton, changeSelectedButton] = React.useState("select");
+    const [existingTracks, setExistingTracks] = React.useState([""]);
 
-    const setTrack = (tName: string) => setTrackName(tName);
+    const selectTrack = (tName: string) => setSelectedTrack(tName);
+    const editTracks = (newTracks: Array<string>) => setExistingTracks(newTracks);
+
+    const API_URL = "http://localhost:8042";
+    
 
     useEffect(() => {
             const storedTrack = localStorage.getItem("trackName");
             if (storedTrack !== null) {
-                setTrackName(JSON.parse(storedTrack));
+                setSelectedTrack(JSON.parse(storedTrack));
             }
         }, []);
+
+    function fetchTracks() {
+        const trackListEndpoint = `${API_URL}/list_tracks`;
+        fetch(trackListEndpoint, { method: "GET" })
+        .then((response) => response.json())
+        .then((result) => {
+            setExistingTracks(result["tracks"]);
+        })
+        .catch((err) => console.log(err));
+    }
+    useEffect(fetchTracks, []);
 
     function getMenuComponent() {
         switch(selectedButton) {
             case "add":
-                return <TrackCreateMenu setTrack={setTrack} />;
+                return <TrackCreateMenu setTrack={selectTrack} />;
             case "select":
-                return (<TrackSelectMenu currentTrack={trackName} setTrack={setTrack}/>);
+                return (<TrackSelectMenu selectedTrack={selectedTrack} selectTrack={selectTrack} tracks={existingTracks} editTracks={editTracks}/>);
             case "run":
-                return <> </>;
+                return (<TrackRunMenu selectedTrack={selectedTrack}></TrackRunMenu>);
             default:
                 return (<></>);
         }
@@ -93,7 +111,7 @@ export default function TrackSelect() {
                 <Grid2 size={12}>
                     <Typography variant="h5">
                         Current Track: {
-                            trackName === "" ? "None" : trackName
+                            selectedTrack === "" ? "None" : selectedTrack
                         }
                     </Typography>
                 </Grid2>

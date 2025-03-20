@@ -37,7 +37,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/mnt/managed_home/farm-ng-user-aaron-romero/Desktop/farm-ng-amiga-autonomous-navigation/amiga-app/venv"
+VIRTUAL_ENV="/mnt/managed_home/farm-ng-user-aaron-romero/Desktop/frontend/amiga-app/venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

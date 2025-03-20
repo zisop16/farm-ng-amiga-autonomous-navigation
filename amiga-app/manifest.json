@@ -3,7 +3,7 @@
     "aaron-app": {
       "name": "aaron-app",
       "type": "app",
-      "exec_cmd": "/mnt/managed_home/farm-ng-user-aaron-romero/Desktop/farm-ng-amiga-autonomous-navigation/amiga-app/venv/bin/python /mnt/managed_home/farm-ng-user-aaron-romero/Desktop/farm-ng-amiga-autonomous-navigation/amiga-app/main.py",
+      "exec_cmd": "/mnt/managed_home/farm-ng-user-aaron-romero/Desktop/frontend/amiga-app/venv/bin/python /mnt/managed_home/farm-ng-user-aaron-romero/Desktop/frontend/amiga-app/main.py",
       "args": [
         ""
       ],

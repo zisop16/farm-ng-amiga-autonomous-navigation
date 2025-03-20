@@ -15,10 +15,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 from pathlib import Path
 from typing import Optional
+import subprocess
+
 
 import uvicorn
+import os
 from farm_ng.core.event_client_manager import (
     EventClient,
     EventClientSubscriptionManager,
@@ -26,20 +30,185 @@ from farm_ng.core.event_client_manager import (
 from farm_ng.core.event_service_pb2 import EventServiceConfigList
 from farm_ng.core.event_service_pb2 import SubscribeRequest
 from farm_ng.core.events_file_reader import proto_from_json_file
+from farm_ng.core.events_file_writer import proto_to_json_file
+from farm_ng.core.event_service_pb2 import EventServiceConfig
 from farm_ng.core.uri_pb2 import Uri
+from farm_ng.track.track_pb2 import (
+    Track,
+    TrackFollowRequest,
+)
+
 from fastapi import FastAPI
 from fastapi import WebSocket
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
+
 from google.protobuf.json_format import MessageToJson
+from google.protobuf.json_format import ParseDict
+from google.protobuf.empty_pb2 import Empty
 
-app = FastAPI()
 
-@app.on_event("startup")
-async def startup_event():
+# Path to the GPS logging script
+SERVICE_CONFIG_PATH = os.getcwd() + "/service_config.json"
+
+# Directory where track JSON files are stored
+TRACKS_DIR = os.getcwd() + "/tracks/"
+
+# Global process handler for Nav Logger
+gps_logging_process: Optional[subprocess.Popen] = None
+
+# Declare event_manager globally to avoid "not initialized" errors
+event_manager: Optional[EventClientSubscriptionManager] = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global event_manager
     print("Initializing App...")
-    asyncio.create_task(event_manager.update_subscriptions())
+
+    if event_manager:
+        asyncio.create_task(event_manager.update_subscriptions())
+
+    yield  # Allows FastAPI to properly initialize
+    print("Shutting down...")
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/list_tracks")
+async def list_tracks():
+    """Lists all JSON track files in the `TRACKS_DIR` directory."""
+    if not os.path.exists(TRACKS_DIR):
+        return {"message": "No tracks directory found."}
+
+    track_files = [f[:-5] for f in os.listdir(TRACKS_DIR) if f.endswith(".json")]
+
+    if not track_files:
+        return {"message": "No tracks available."}
+
+    return {"tracks": track_files}
+
+@app.get("/get_track/{track_name}")
+async def get_track(track_name: str):
+    """Reads a track JSON file and returns its content."""
+    track_path = os.path.join(TRACKS_DIR, f"{track_name}.json")
+
+    if not os.path.exists(track_path):
+        return {"message": f"Track '{track_name}.json' not found."}
+
+    with open(track_path, "r") as json_file:
+        track_data = json.load(json_file)
+
+    waypoints = track_data.get("waypoints", [])
+
+    return {
+        "track_name": track_name,
+        "waypoints": waypoints
+    }
+
+async def record_track(service_config_path: Path, track_name: str, output_dir: Path) -> None:
+    """Runs the filter service client to record a track."""
+    global recording_active
+    recording_active = True  # Ensure we mark recording as active
+
+    # Ensure output directory exists
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load the service configuration
+    with open(service_config_path, "r") as f:
+        service_configs = json.load(f)
+
+    # Extract the "filter" service configuration
+    filter_config_dict = next((cfg for cfg in service_configs if cfg.get("name") == "filter"), None)
+
+    if not filter_config_dict:
+        raise HTTPException(status_code=500, detail="Filter service configuration not found.")
+
+    # Convert dictionary to protobuf format
+    config: EventServiceConfig = EventServiceConfig()
+    ParseDict(filter_config_dict, config)
+
+    # Clear the track before recording
+    try:
+        print(f"Sending /clear_track request to {config.host}:{config.port}")
+        await asyncio.wait_for(EventClient(config).request_reply("/clear_track", Empty()), timeout=5)
+    except asyncio.TimeoutError:
+        print("⚠ Timeout: No response from /clear_track. Continuing recording.")
+
+    # Create a Track message
+    track = Track()
+
+    # Subscribe to the filter track topic
+    async for event, message in EventClient(config).subscribe(config.subscriptions[0], decode=True):
+        if not recording_active:
+            print("Recording stopped.")
+            break  # Stop recording loop
+
+        print("Adding to track:", message)
+        next_waypoint = track.waypoints.add()
+        next_waypoint.CopyFrom(message)
+
+        track_file = output_dir / f"{track_name}.json"
+        if not proto_to_json_file(track_file, track):
+            print(f"⚠ Failed to write Track to {track_file}")
+            break  # Stop recording if writing fails
+
+        print(f"✅ Saved track of length {len(track.waypoints)} to {track_file}")
+
+    print("Recording task completed.")
+###stop###
+@app.post("/stop_recording")
+async def stop_recording():
+    """Stops the recording process."""
+    global recording_active
+    if not recording_active:
+        return {"message": "No recording in progress."}
+
+    recording_active = False  # Stop the recording process
+    return {"message": "Recording stopped successfully."}
+
+###Follow a Track ###
+@app.get("/follow/{track_name}")
+async def follow_track(track_name: str):
+    """Instructs the robot to follow an existing recorded track."""
+    track_path = Path(TRACKS_DIR) / f"{track_name}.json"
+    service_config_path = Path(SERVICE_CONFIG_PATH)
+
+    if not track_path.exists():
+        raise HTTPException(status_code=404, detail=f"Track '{track_name}' not found.")
+
+    # Load the service configuration
+    with open(service_config_path, "r") as f:
+        service_configs = json.load(f)
+
+    # Find the "track_follower" configuration
+    target_cfg = None
+    for cfg in service_configs:
+        if cfg.get("name") == "track_follower":
+            target_cfg = cfg
+            break
+
+    if target_cfg is None:
+        raise HTTPException(status_code=500, detail="Track follower configuration not found.")
+
+    config: EventServiceConfig = ParseDict(target_cfg, EventServiceConfig())
+    track: Track = proto_from_json_file(track_path, Track())
+
+    try:
+        await EventClient(config).request_reply("/set_track", TrackFollowRequest(track=track))
+    except asyncio.exceptions.TimeoutError:
+        return {"success": False, "message": "Failed to call /set_track"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+    try:
+        await EventClient(config).request_reply("/start", Empty())
+    except asyncio.exceptions.TimeoutError:
+        return {"success": False, "message": "Failed to call /start"}
+
+    return {"sucess": True, "message": f"Following track '{track_name}'."}
+    
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,80 +217,6 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
-
-# to store the events clients
-clients: dict[str, EventClient] = {}
-
-
-@app.get("/list_uris")
-async def list_uris() -> JSONResponse:
-    """Return all the uris from the event manager."""
-    all_uris_list: EventServiceConfigList = event_manager.get_all_uris_config_list(
-        config_name="all_subscription_uris"
-    )
-
-    all_uris = {}
-    for config in all_uris_list.configs:
-        if config.name == "all_subscription_uris":
-            for subscription in config.subscriptions:
-                uri = subscription.uri
-                # service_name is formatted as "service_name=gps", so we split on "=" and take the last [1] part of it.
-                service_name = uri.query.split("=")[1]
-                key = f"{service_name}{uri.path}"
-                value = {
-                    "scheme": "protobuf",
-                    "authority": config.host,
-                    "path": uri.path,
-                    "query": uri.query,
-                }
-                all_uris[key] = value
-
-    return JSONResponse(content=dict(sorted(all_uris.items())), status_code=200)
-
-
-@app.websocket("/subscribe/{service_name}/{uri_path:path}")
-@app.websocket("/subscribe/{service_name}/{sub_service_name}/{uri_path:path}")
-async def subscribe(
-    websocket: WebSocket,
-    service_name: str,
-    uri_path: str,
-    sub_service_name: Optional[str] = None,
-    every_n: int = 1
-):
-    """Coroutine to subscribe to an event service via websocket.
-    
-    Args:
-        websocket (WebSocket): the websocket connection
-        service_name (str): the name of the event service
-        uri_path (str): the uri path to subscribe to
-        sub_service_name (str, optional): the sub service name, if any
-        every_n (int, optional): the frequency to receive events. Defaults to 1.
-    
-    Usage:
-        ws = new WebSocket("ws://localhost:8042/subscribe/gps/pvt")
-        ws = new WebSocket("ws://localhost:8042/subscribe/oak/0/imu")
-    """
-
-    full_service_name = f"{service_name}/{sub_service_name}" if sub_service_name else service_name
-
-    client: EventClient = (
-        event_manager.clients[full_service_name]
-        if full_service_name not in ["gps", "oak/0", "oak/1", "oak/2", "oak/3"]
-        else event_manager.clients["amiga"]
-    )
-
-    await websocket.accept()
-
-    async for _, msg in client.subscribe(
-        SubscribeRequest(
-            uri=Uri(path=f"/{uri_path}", query=f"service_name={full_service_name}"),
-            every_n=every_n,
-        ),
-        decode=True,
-    ):
-        await websocket.send_json(MessageToJson(msg))
-
-    await websocket.close()
 
 if __name__ == "__main__":
 

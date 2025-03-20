@@ -6,38 +6,26 @@ import CheckIcon from '@mui/icons-material/Check';
 import React, { useEffect, useState } from "react";
 
 interface TrackSelectProps {
-    currentTrack: string,
-    setTrack: (tName: string) => void
+    selectedTrack: string,
+    selectTrack: (tName: string) => void,
+    tracks: Array<string>,
+    editTracks: (newTracks: Array<string>) => void
 };
 
 export default function TrackSelectMenu(props: TrackSelectProps) {
-    const [trackNames, setTrackNames] = useState<string[]>([""]);
     const [editingTrack, setEditingTrack] = useState<string | null>(null);
     const [editedName, setEditedName] = useState<string>("");
     // The string should be equal to the name which was duplicated, whenever this error is active
     const [duplicateNameError, setDuplicateNameError] = useState("");
-    
-    function fetchTrackNames(): void {
-        const storedTrack = localStorage.getItem("trackNames");
-        const trackArray = storedTrack ? JSON.parse(storedTrack) : null;
-
-        if (trackArray === null || trackArray.length === 0) {
-            setTrackNames(["track1", "track2"]);
-            localStorage.setItem("trackNames", JSON.stringify(["track1", "track2"]));
-        } else {
-            setTrackNames(trackArray);
-        }
-    }
 
     function removeTrack(tName: string): void {
-        setTrackNames(prevTrackNames => {
-            const updatedTracks = prevTrackNames.filter(track => track !== tName);
-            localStorage.setItem("trackNames", JSON.stringify(updatedTracks)); 
-            return updatedTracks;
-        });
+        
+        props.editTracks(props.tracks.filter(track => track !== tName));
+        
+        
 
-        if (tName === props.currentTrack) {
-            props.setTrack("");
+        if (tName === props.selectedTrack) {
+            props.selectTrack("");
         }
     }
 
@@ -47,16 +35,17 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
         setDuplicateNameError("");
     }
 
+    
     function saveTrackName(oldName: string): void {
         const trimmedName = editedName.trim();
 
-        if (!trimmedName || (trimmedName !== oldName && trackNames.includes(trimmedName))) {
+        if (!trimmedName || (trimmedName !== oldName && props.tracks.includes(trimmedName))) {
             setDuplicateNameError(trimmedName);
             setEditedName(oldName);
             return;
         }
 
-        const newTrackNames = trackNames.map((t, i) => {
+        const newTrackNames = props.tracks.map((t, i) => {
             if (t === oldName) {
                 return trimmedName;
             } else {
@@ -64,18 +53,17 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
             }
         });
 
-        setTrackNames(newTrackNames);
-        localStorage.setItem('trackNames', JSON.stringify(newTrackNames));
+        props.editTracks(newTrackNames);
+        // Make api call
+        // localStorage.setItem('trackNames', JSON.stringify(newTrackNames));
 
-        if (props.currentTrack === oldName) {
-            props.setTrack(trimmedName);
+        if (props.selectedTrack === oldName) {
+            props.selectTrack(trimmedName);
         }
 
         setEditingTrack(null);
         setDuplicateNameError("");
     }
-
-    useEffect(fetchTrackNames, []);
 
     const iconStyle = {
         fontSize: 45
@@ -94,7 +82,7 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
                 Available Tracks:
             </Typography>
             <List id="track-modal-description">
-                {trackNames.map((tName: string) => {
+                {props.tracks.map((tName: string) => {
                     return (
                         <ListItem
                             secondaryAction={
@@ -136,7 +124,7 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
                                     fullWidth
                                 />
                             ) : (
-                                <ListItemButton onClick={() => props.setTrack(tName)}>
+                                <ListItemButton onClick={() => props.selectTrack(tName)}>
                                     <ListItemText primary={tName} />
                                 </ListItemButton>
                             )}
