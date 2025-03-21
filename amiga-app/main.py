@@ -42,6 +42,7 @@ from fastapi import FastAPI
 from fastapi import WebSocket
 from fastapi import HTTPException
 from fastapi import BackgroundTasks
+from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -50,6 +51,8 @@ from contextlib import asynccontextmanager
 from google.protobuf.json_format import MessageToJson
 from google.protobuf.json_format import ParseDict
 from google.protobuf.empty_pb2 import Empty
+
+from grpc.aio import AioRpcError
 
 
 # Path to the GPS logging script
@@ -89,6 +92,28 @@ async def list_tracks():
         return {"message": "No tracks available."}
 
     return {"tracks": track_files}
+
+@app.get("/delete_track/{track_name}")
+async def delete_track(track_name: str):
+    """Deletes a JSON track file from the  `TRACKS_DIR` directory."""
+    if not track_name:
+        raise HTTPException(status_code=400, detail="Empty path name passed")
+    track_name = track_name.strip()
+    json_path = Path(TRACKS_DIR) / (track_name + ".json")
+
+    if not json_path.resolve().parent == Path(TRACKS_DIR) or not json_path.resolve().is_absolute():
+        raise HTTPException(status_code=403, detail="Trying to delete file outside tracks directory")
+
+    if not json_path.exists():
+        raise HTTPException(status_code=404, detail="File does not exist")
+
+    try:
+        json_path.unlink()
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+    return {"success": True, "message": "Track deleted", "track_name": track_name}
+
 
 @app.get("/get_track/{track_name}")
 async def get_track(track_name: str):
@@ -196,30 +221,15 @@ async def stop_recording():
 async def follow_track(track_name: str):
     """Instructs the robot to follow an existing recorded track."""
     track_path = Path(TRACKS_DIR) / f"{track_name}.json"
-    service_config_path = Path(SERVICE_CONFIG_PATH)
-
+    client = event_manager.clients["track_follower"]
+    
     if not track_path.exists():
         raise HTTPException(status_code=404, detail=f"Track '{track_name}' not found.")
 
-    # Load the service configuration
-    with open(service_config_path, "r") as f:
-        service_configs = json.load(f)
-
-    # Find the "track_follower" configuration
-    target_cfg = None
-    for cfg in service_configs:
-        if cfg.get("name") == "track_follower":
-            target_cfg = cfg
-            break
-
-    if target_cfg is None:
-        raise HTTPException(status_code=500, detail="Track follower configuration not found.")
-
-    config: EventServiceConfig = ParseDict(target_cfg, EventServiceConfig())
-    track: Track = proto_from_json_file(track_path, Track())
+   track: Track = proto_from_json_file(track_path, Track())
 
     try:
-        await EventClient(config).request_reply("/set_track", TrackFollowRequest(track=track))
+        await client.request_reply("/set_track", TrackFollowRequest(track=track))
     except asyncio.exceptions.TimeoutError:
         return {"success": False, "message": "Failed to call /set_track"}
     except Exception as e:
@@ -230,8 +240,47 @@ async def follow_track(track_name: str):
     except asyncio.exceptions.TimeoutError:
         return {"success": False, "message": "Failed to call /start"}
 
-    return {"sucess": True, "message": f"Following track '{track_name}'."}
-    
+    return {"success": True, "message": f"Following track '{track_name}'."}
+
+@app.post("/pause_following/")
+async def pause_following(request: Request):
+    """Instructs the robot to pause track following."""
+    client = event_manager.clients["track_follower"]
+    try:
+        await asyncio.wait_for(client.request_reply("/pause", Empty()), 0.5)
+    except AioRpcError as e:
+        return {"success": False, "message": e.details()}
+    except asyncio.exceptions.TimeoutError:
+        return {"success": False, "message": "Failed to call /pause"}
+
+    return {"success": True, "message": "Pausing track following"}
+
+@app.post("/resume_following")
+async def resume_following(request: Request):
+    """Instructs the robot to resume track following."""
+    client = event_manager.clients["track_follower"]
+    try:
+        await asyncio.wait_for(client.request_reply("/resume", Empty()), 0.5)
+    except AioRpcError as e:
+        return {"success": False, "message": e.details()}
+    except asyncio.exceptions.TimeoutError:
+        return {"success": False, "message": "Failed to call /resume"}
+
+    return {"success": True, "message": "Resuming track following"}
+
+
+
+@app.post("/stop_following")
+async def stop_following(request: Request):
+    """Instructs the robot to stop track following."""
+    client = event_manager.clients["track_follower"]
+    try:
+        await asyncio.wait_for(client.request_reply("/cancel", Empty()), 0.5)
+    except asyncio.exceptions.TimeoutError:
+        return {"success": False, "message": "Failed to call /cancel"}
+
+    return {"success": True, "message": "Stopping track following"}
+
 
 app.add_middleware(
     CORSMiddleware,
