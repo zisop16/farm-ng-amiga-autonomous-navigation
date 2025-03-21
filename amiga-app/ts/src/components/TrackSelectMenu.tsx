@@ -85,6 +85,7 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
                 {props.tracks.map((tName: string) => {
                     return (
                         <ListItem
+                            key={tName}
                             secondaryAction={
                                 <>
                                     {editingTrack === tName ? (

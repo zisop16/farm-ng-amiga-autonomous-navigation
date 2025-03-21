@@ -17,6 +17,7 @@ import argparse
 import asyncio
 import json
 from pathlib import Path
+import signal
 from typing import Optional
 import subprocess
 
@@ -38,6 +39,7 @@ from farm_ng.track.track_pb2 import (
     TrackFollowRequest,
 )
 
+import fastapi
 from fastapi import FastAPI
 from fastapi import WebSocket
 from fastapi import HTTPException
@@ -67,6 +69,9 @@ event_manager: Optional[EventClientSubscriptionManager] = None
 async def lifespan(app: FastAPI):
     global event_manager
     print("Initializing App...")
+    calibrated = await event_manager.clients["filter"].request_reply("/calibrate", Empty())
+    print(calibrated)
+
 
     if event_manager:
         asyncio.create_task(event_manager.update_subscriptions())
@@ -208,7 +213,45 @@ async def follow_track(track_name: str):
         return {"success": False, "message": "Failed to call /start"}
 
     return {"sucess": True, "message": f"Following track '{track_name}'."}
+
+@app.websocket("/filter_data")
+async def filter_data(
+    websocket: WebSocket,
+    every_n: int = 7
+):
+    """Coroutine to subscribe to filter state service via websocket.
     
+    Args:
+        websocket (WebSocket): the websocket connection
+        every_n (int, optional): the frequency to receive events. Defaults to 1.
+    
+    Usage:
+        ws = new WebSocket(`${API_URL}/filter_data`)
+    """
+
+    full_service_name = "filter"
+
+    client: EventClient = (event_manager.clients[full_service_name])
+
+    await websocket.accept()
+
+    # client.
+
+    async for _, msg in client.subscribe(
+        SubscribeRequest(
+            uri=Uri(path=f"/state", query=f"service_name={full_service_name}"),
+            every_n=every_n,
+        ),
+        decode=True,
+    ):
+        await websocket.send_json(MessageToJson(msg))
+
+    await websocket.close()
+    
+@app.get("/kill")
+async def kill():
+    os.kill(os.getpid(), signal.SIGTERM)
+    return fastapi.Response(status_code=200, content='Server shutting down...')
 
 app.add_middleware(
     CORSMiddleware,

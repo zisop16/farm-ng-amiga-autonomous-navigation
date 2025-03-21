@@ -18,14 +18,6 @@ export default function TrackSelect() {
     const editTracks = (newTracks: Array<string>) => setExistingTracks(newTracks);
 
     const API_URL = "http://localhost:8042";
-    
-
-    useEffect(() => {
-            const storedTrack = localStorage.getItem("trackName");
-            if (storedTrack !== null) {
-                setSelectedTrack(JSON.parse(storedTrack));
-            }
-        }, []);
 
     function fetchTracks() {
         const trackListEndpoint = `${API_URL}/list_tracks`;
