@@ -107,6 +107,28 @@ async def get_track(track_name: str):
         "waypoints": waypoints
     }
 
+###
+recording_active = False
+@app.post("/record/{track_name}")
+async def start_recording(track_name: str, background_tasks: BackgroundTasks):
+    """Starts recording a track using the filter service client."""
+    global recording_active
+    if recording_active:
+        raise HTTPException(status_code=400, detail="Recording is already in progress.")
+
+    recording_active = True  # Set recording flag to true
+    output_dir = Path(TRACKS_DIR)
+
+    service_config_path = Path(SERVICE_CONFIG_PATH)
+    if not service_config_path.exists():
+        raise HTTPException(status_code=500, detail="Service configuration file not found.")
+
+    # Run the recording as a background task
+    background_tasks.add_task(record_track, service_config_path, track_name, output_dir)
+
+    return {"message": f"Recording started for track '{track_name}'."}
+
+
 async def record_track(service_config_path: Path, track_name: str, output_dir: Path) -> None:
     """Runs the filter service client to record a track."""
     global recording_active
