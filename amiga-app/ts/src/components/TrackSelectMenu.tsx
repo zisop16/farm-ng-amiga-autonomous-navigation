@@ -9,8 +9,10 @@ interface TrackSelectProps {
     selectedTrack: string,
     selectTrack: (tName: string) => void,
     tracks: Array<string>,
-    editTracks: (newTracks: Array<string>) => void
+    editTracks: (newTracks: Array<string>) => void,
+    apiUrl: string  // New prop for API URL
 };
+
 
 export default function TrackSelectMenu(props: TrackSelectProps) {
     const [editingTrack, setEditingTrack] = useState<string | null>(null);
@@ -35,36 +37,59 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
         setDuplicateNameError("");
     }
 
-    
+    ///////////
     function saveTrackName(oldName: string): void {
         const trimmedName = editedName.trim();
-
+    
         if (!trimmedName || (trimmedName !== oldName && props.tracks.includes(trimmedName))) {
             setDuplicateNameError(trimmedName);
             setEditedName(oldName);
             return;
         }
-
-        const newTrackNames = props.tracks.map((t, i) => {
+    
+        const newTrackNames = props.tracks.map((t) => {
             if (t === oldName) {
                 return trimmedName;
             } else {
                 return t;
             }
         });
-
-        props.editTracks(newTrackNames);
-        // Make api call
-        // localStorage.setItem('trackNames', JSON.stringify(newTrackNames));
-
-        if (props.selectedTrack === oldName) {
-            props.selectTrack(trimmedName);
-        }
-
-        setEditingTrack(null);
-        setDuplicateNameError("");
+    
+        // Make API call to rename track
+        fetch(`${props.apiUrl}/edit_track`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                current_name: oldName,  // Proper JSON structure for the Pydantic model
+                new_name: trimmedName
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to rename track: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log("Track renamed successfully:", data.message);
+            props.editTracks(newTrackNames);
+    
+            if (props.selectedTrack === oldName) {
+                props.selectTrack(trimmedName);
+            }
+    
+            setEditingTrack(null);
+            setDuplicateNameError("");
+        })
+        .catch(error => {
+            console.error("Error renaming track:", error);
+        });
     }
-
+    
+    
+///////////
     const iconStyle = {
         fontSize: 45
     };

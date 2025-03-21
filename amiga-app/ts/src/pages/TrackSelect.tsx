@@ -17,7 +17,7 @@ export default function TrackSelect() {
     const selectTrack = (tName: string) => setSelectedTrack(tName);
     const editTracks = (newTracks: Array<string>) => setExistingTracks(newTracks);
 
-    const API_URL = "http://localhost:8042";
+    const API_URL = "http://localhost:8000";
 
     function fetchTracks() {
         const trackListEndpoint = `${API_URL}/list_tracks`;
@@ -35,13 +35,22 @@ export default function TrackSelect() {
             case "add":
                 return <TrackCreateMenu setTrack={selectTrack} />;
             case "select":
-                return (<TrackSelectMenu selectedTrack={selectedTrack} selectTrack={selectTrack} tracks={existingTracks} editTracks={editTracks}/>);
+                return (
+                    <TrackSelectMenu 
+                        selectedTrack={selectedTrack} 
+                        selectTrack={selectTrack} 
+                        tracks={existingTracks} 
+                        editTracks={editTracks}
+                        apiUrl={API_URL}  // Pass the API URL here
+                    />
+                );
             case "run":
                 return (<TrackRunMenu selectedTrack={selectedTrack}></TrackRunMenu>);
             default:
                 return (<></>);
         }
     }
+    
 
     const handleCameraTabChange = (event: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue);
