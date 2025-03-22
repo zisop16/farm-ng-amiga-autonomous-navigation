@@ -114,6 +114,28 @@ async def get_track(track_name: str):
         "waypoints": waypoints
     }
 
+    @app.get("/delete_track/{track_name}")
+    async def delete_track(track_name: str):
+        """Deletes a JSON track file from the  `TRACKS_DIR` directory."""
+        if not track_name:
+            raise HTTPException(status_code=400, detail="Empty path name passed")
+        track_name = track_name.strip()
+        json_path = Path(TRACKS_DIR) / (track_name + ".json")
+
+        if not json_path.resolve().parent == Path(TRACKS_DIR) or not json_path.resolve().is_absolute():
+            raise HTTPException(status_code=403, detail="Trying to delete file outside tracks directory")
+
+        if not json_path.exists():
+            raise HTTPException(status_code=404, detail="File does not exist")
+
+        try:
+            json_path.unlink()
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+
+        return {"success": True, "message": "Track deleted", "track_name": track_name}
+
+
 
 # Define Pydantic model for request data
 class EditTrackRequest(BaseModel):
@@ -362,6 +384,60 @@ async def resume_following():
 
     print("Track following resumed successfully.")
     return {"success": True, "message": "Resuming track following"}
+
+@app.post("/run_track/{track_name}")
+async def run_track(track_name: str):
+    """Runs a track step by step, stopping for camera functions at each segment."""
+    track_path = Path(TRACKS_DIR) / f"{track_name}.json"
+
+    # Check if track exists
+    if not track_path.exists():
+        raise HTTPException(status_code=404, detail=f"Track '{track_name}' not found.")
+
+    # Load the track
+    try:
+        track: Track = proto_from_json_file(track_path, Track())  # Ensure this function is correctly implemented
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load track: {str(e)}")
+
+    waypoints = track.waypoints
+    if not waypoints:
+        raise HTTPException(status_code=400, detail="Track has no waypoints.")
+
+    segment_size = 5  
+    num_segments = (len(waypoints) + segment_size - 1) // segment_size  
+
+    # Ensure track client exists
+    if "track" not in event_manager.clients:
+        raise HTTPException(status_code=500, detail="Track client is not registered.")
+
+    for i in range(num_segments):
+        segment_start = i * segment_size
+        segment_end = min((i + 1) * segment_size, len(waypoints))
+        segment = waypoints[segment_start:segment_end]
+
+        # Create follow request
+        follow_request = TrackFollowRequest(waypoints=segment)
+
+        try:
+            response = await event_manager.clients["track"].request_reply("/follow", follow_request)
+            print(f"Segment {i+1}/{num_segments} executed successfully: {response}")
+        except AioRpcError as e:
+            print(f"⚠️ Segment {i+1} failed: {str(e)}")
+            continue  # Skip this segment and continue with the rest
+
+        # Stop and trigger camera function
+        await perform_camera_function()
+
+    return {"message": f"Track '{track_name}' completed."}
+
+
+async def perform_camera_function():
+    """Simulates camera function execution."""
+    print("📸 Capturing image...")
+    await asyncio.sleep(2)  # Simulating processing delay
+    print("✅ Image captured.")
+
 
 
 ####

@@ -20,22 +20,41 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     // The string should be equal to the name which was duplicated, whenever this error is active
     const [duplicateNameError, setDuplicateNameError] = useState("");
 
-    function removeTrack(tName: string): void {
-        
-        props.editTracks(props.tracks.filter(track => track !== tName));
-        
-        
 
-        if (tName === props.selectedTrack) {
-            props.selectTrack("");
-        }
-    }
+	function removeTrack(tName: string): void {
+	    fetch(`${props.apiUrl}/delete_track/${encodeURIComponent(tName)}`, {
+		method: "GET",
+	    })
+	    .then(response => {
+		if (!response.ok) {
+		    throw new Error(`Failed to delete track: ${response.statusText}`);
+		}
+		return response.json();
+	    })
+	    .then(data => {
+		console.log("Track deleted successfully:", data.message);
+		props.editTracks(props.tracks.filter(track => track !== tName));
+
+		if (tName === props.selectedTrack) {
+		    props.selectTrack("");
+		}
+	    })
+	    .catch(error => {
+		console.error("Error deleting track:", error);
+	    });
+	}
+
+
 
     function startEditing(tName: string): void {
         setEditingTrack(tName);
         setEditedName(tName);
         setDuplicateNameError("");
     }
+
+
+
+
 
     ///////////
     function saveTrackName(oldName: string): void {
