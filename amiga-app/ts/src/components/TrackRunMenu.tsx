@@ -14,7 +14,7 @@ export default function TrackRunMenu(props: TrackRunProps) {
         margin: "20px 0 0 0",
         boxShadow: 24,
     };
-    const API_URL = "http://localhost:8042";
+    const API_URL = "http://localhost:8000";
 
     const [currentLocation, setCurrentLocation] = useState(Vec2.Zero);
     const [startPosition, setStartPosition] = useState(Vec2.Zero);
@@ -78,31 +78,136 @@ export default function TrackRunMenu(props: TrackRunProps) {
         console.log(currAngle, targetAngle);
         return (-targetAngle + currAngle) * 180/Math.PI;
     }
+///follow//
+function followTrack() {
+    const followTrackEndpoint = `${API_URL}/follow/${props.selectedTrack}`;
+    fetch(followTrackEndpoint, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        }
+    })
+        .then((response) => response.json())
+        .then((result) => {
+            console.log("Full response from follow track:", result);
+            if (result.success) {
+                console.log("Following track:", result.message);
+                alert(`Following track: ${props.selectedTrack}`);
+            } else {
+                console.error("Failed to follow track:", result.message);
+                alert(`Failed to follow track: ${result.message}`);
+            }
+        })
+        .catch((err) => {
+            console.error("Error following track:", err);
+            alert("Error following track");
+        });
+}
 
-    useEffect(fetchStartingPoint, [props.selectedTrack]);
-    return (
+
+
+////
+//pause//
+function pauseTrack() {
+    const pauseTrackEndpoint = `${API_URL}/pause_following/`;
+    fetch(pauseTrackEndpoint, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        }
+    })
+        .then((response) => response.json())
+        .then((result) => {
+            if (result.success) {
+                console.log("Paused track:", result.message);
+                alert(`Paused track following`);
+            } else {
+                console.error("Failed to pause track:", result.message);
+                alert(`Failed to pause track: ${result.message}`);
+            }
+        })
+        .catch((err) => {
+            console.error("Error pausing track:", err);
+            alert("Error pausing track");
+        });
+}
+////resume////
+function resumeTrack() {
+    const resumeTrackEndpoint = `${API_URL}/resume_following/`;
+    fetch(resumeTrackEndpoint, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        }
+    })
+        .then((response) => response.json())
+        .then((result) => {
+            if (result.success) {
+                console.log("Resumed track:", result.message);
+                alert(`Resumed track following`);
+            } else {
+                console.error("Failed to resume track:", result.message);
+                alert(`Failed to resume track: ${result.message}`);
+            }
+        })
+        .catch((err) => {
+            console.error("Error resuming track:", err);
+            alert("Error resuming track");
+        });
+}
+////
+
+useEffect(fetchStartingPoint, [props.selectedTrack]);
+
+return (
     <Box sx={boxStyle}>
-        <Grid2 container rowSpacing={2} style={{display: "flex", alignItems: "center", gap: "10px"}}>
+        <Grid2 container rowSpacing={2} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <Grid2 size={12}>
                 <Typography variant="h6">Distance: {twoDigits(getDist())}</Typography>
             </Grid2>
-            <Grid2 size={12} style={{justifyContent: "center", display: "flex"}}>
+            <Grid2 size={12} style={{ justifyContent: "center", display: "flex" }}>
                 <Typography variant="h6">
                     <b><u>Direction</u></b>
                 </Typography>
             </Grid2>
-            <Grid2 size={12} style={{justifyContent: "center", display: "flex"}}>
-                <Arrow 
-                angle={rotationTarget()}
-                length={100}
-                lineWidth={10}
-                style={{
-                    width: "100px",
-                    height: "100px"
-                }}
+            <Grid2 size={12} style={{ justifyContent: "center", display: "flex" }}>
+                <Arrow
+                    angle={rotationTarget()}
+                    length={100}
+                    lineWidth={10}
+                    style={{
+                        width: "100px",
+                        height: "100px"
+                    }}
                 />
+            </Grid2>
+            <Grid2 size={12} style={{ justifyContent: "center", display: "flex", marginTop: "20px" }}>
+                <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={followTrack}
+                    style={{ margin: "10px", width: "200px", height: "50px" }}
+                >
+                    Follow Track
+                </Button>
+                <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={pauseTrack}
+                    style={{ margin: "10px", width: "200px", height: "50px" }}
+                >
+                    Pause Track
+                </Button>
+                <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={resumeTrack}
+                    style={{ margin: "10px", width: "200px", height: "50px" }}
+                >
+                    Resume Track
+                </Button>
             </Grid2>
         </Grid2>
     </Box>
-    );
+);
 }
