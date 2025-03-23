@@ -1,7 +1,8 @@
-import { LinearProgress, Typography, TextField, Button, Grid2, Box } from "@mui/material";
+import { LinearProgress, Typography, TextField, Button, Grid2, Box, Stack, Paper } from "@mui/material";
+import { styled } from '@mui/material/styles';
 import React, { useEffect, useState } from "react";
 import { Vec2, FromPolar, twoDigits } from "../utils/Vec2";
-import Arrow from '@elsdoerfer/react-arrow';
+import arrow from "../icons/direction-arrow.png"
 
 interface TrackRunProps {
     selectedTrack: string
@@ -14,16 +15,15 @@ export default function TrackRunMenu(props: TrackRunProps) {
         margin: "20px 0 0 0",
         boxShadow: 24,
     };
-    const API_URL = "http://localhost:8000";
 
     const [currentLocation, setCurrentLocation] = useState(Vec2.Zero);
     const [startPosition, setStartPosition] = useState(Vec2.Zero);
     const [rotationAngle, updateRotationAngle] = useState(0);
 
     useEffect(() => {
-        const detailSocket = new WebSocket(
-            `${API_URL}/filter_data`
-        );
+        // go to ws:// instead of http://
+        const socket_URL = `ws://${import.meta.env.VITE_API_URL.substring(7)}/filter_data`;
+        const detailSocket = new WebSocket(socket_URL);
 
         detailSocket.onopen = (event) => {
             console.log('Detail WebSocket connection opened:', event);
@@ -33,7 +33,12 @@ export default function TrackRunMenu(props: TrackRunProps) {
             const transform = JSON.parse(JSON.parse(event.data))["pose"]["aFromB"];
             const translation = transform["translation"];
             setCurrentLocation(new Vec2(translation.x, translation.y));
-            const zAxisRotation = Math.acos(transform["rotation"]["unitQuaternion"]["real"]) * 2;
+            const zAxis = transform["rotation"]["unitQuaternion"]["imag"]["z"];
+            let zAxisRotation = Math.acos(transform["rotation"]["unitQuaternion"]["real"]) * 2;
+            if (zAxis < 0) {
+                zAxisRotation *= -1;
+            }
+            // console.log(`${zAxis}, ${zAxisRotation * 180/Math.PI}`);
             updateRotationAngle(zAxisRotation);
             // console.log(zAxisRotation);
         }
@@ -41,15 +46,13 @@ export default function TrackRunMenu(props: TrackRunProps) {
         detailSocket.onclose = (event) => {
             console.log('Detail WebSocket connection closed:', event);
         };
-        // This websocket will never close
-        // Oh well.
-        // return () => {detailSocket.close()};
+        return () => {detailSocket.close()};
     }, []);
 
     
 
     function fetchStartingPoint() {
-        const trackDataEndpoint = `${API_URL}/get_track/${props.selectedTrack}`;
+        const trackDataEndpoint = `${import.meta.env.VITE_API_URL}/get_track/${props.selectedTrack}`;
         fetch(trackDataEndpoint, { method: "GET" })
         .then((response) => response.json())
         .then((result) => {
@@ -73,35 +76,28 @@ export default function TrackRunMenu(props: TrackRunProps) {
         const diff = startPosition.Sub(currentLocation);
         const targetAngleVec = diff.Normalized();
         const currentAngleVec = FromPolar(1, rotationAngle);
-        const currAngle = currentAngleVec.Argument();
-        const targetAngle = targetAngleVec.Argument();
+        const currAngle = currentAngleVec.Argument() * 180 / Math.PI;
+        const targetAngle = targetAngleVec.Argument() * 180 / Math.PI;
         console.log(currAngle, targetAngle);
-        return (-targetAngle + currAngle) * 180/Math.PI;
+        // Rotate the negative of (target - curr + 90) because rotate() will go clockwise in JS
+        return (-targetAngle + currAngle) - 90;
     }
 ///follow//
 function followTrack() {
-    const followTrackEndpoint = `${API_URL}/follow/${props.selectedTrack}`;
-    fetch(followTrackEndpoint, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
+    const followTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/${props.selectedTrack}`;
+    fetch(followTrackEndpoint, {method: "POST",})
+    .then((response) => response.json())
+    .then((result) => {
+        console.log("Full response from follow track:", result);
+        if (result.success) {
+            console.log("Following track:", result.message);
+        } else {
+            console.error("Failed to follow track:", result.message);
         }
     })
-        .then((response) => response.json())
-        .then((result) => {
-            console.log("Full response from follow track:", result);
-            if (result.success) {
-                console.log("Following track:", result.message);
-                alert(`Following track: ${props.selectedTrack}`);
-            } else {
-                console.error("Failed to follow track:", result.message);
-                alert(`Failed to follow track: ${result.message}`);
-            }
-        })
-        .catch((err) => {
-            console.error("Error following track:", err);
-            alert("Error following track");
-        });
+    .catch((err) => {
+        console.error("Error following track:", err);
+    });
 }
 
 
@@ -109,7 +105,7 @@ function followTrack() {
 ////
 //pause//
 function pauseTrack() {
-    const pauseTrackEndpoint = `${API_URL}/pause_following/`;
+    const pauseTrackEndpoint = `${import.meta.env.VITE_API_URL}/pause_following/`;
     fetch(pauseTrackEndpoint, {
         method: "POST",
         headers: {
@@ -133,7 +129,7 @@ function pauseTrack() {
 }
 ////resume////
 function resumeTrack() {
-    const resumeTrackEndpoint = `${API_URL}/resume_following/`;
+    const resumeTrackEndpoint = `${import.meta.env.VITE_API_URL}/resume_following/`;
     fetch(resumeTrackEndpoint, {
         method: "POST",
         headers: {
@@ -159,27 +155,41 @@ function resumeTrack() {
 
 useEffect(fetchStartingPoint, [props.selectedTrack]);
 
+const Item = styled(Paper)(({ theme }) => ({
+    backgroundColor: '#fff',
+    ...theme.typography.body2,
+    padding: theme.spacing(1),
+    textAlign: 'center',
+    color: theme.palette.text.secondary,
+    ...theme.applyStyles('dark', {
+      backgroundColor: '#1A2027',
+    }),
+  }));
+
 return (
     <Box sx={boxStyle}>
-        <Grid2 container rowSpacing={2} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <Grid2 size={12}>
-                <Typography variant="h6">Distance: {twoDigits(getDist())}</Typography>
+        <Grid2 container rowSpacing={2} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
+            <Grid2 size={6}>
+            <Stack spacing={2} style={{justifyContent: "center", display: "flex"}}>
+                <Item>
+                    <Typography variant="h6">Distance:</Typography>
+                </Item>
+                <Item>
+                    <Typography variant="h4" style={{height: "100px"}}>{twoDigits(getDist())}<br></br>meters</Typography>
+                </Item>
+            </Stack>
             </Grid2>
-            <Grid2 size={12} style={{ justifyContent: "center", display: "flex" }}>
-                <Typography variant="h6">
-                    <b><u>Direction</u></b>
-                </Typography>
-            </Grid2>
-            <Grid2 size={12} style={{ justifyContent: "center", display: "flex" }}>
-                <Arrow
-                    angle={rotationTarget()}
-                    length={100}
-                    lineWidth={10}
-                    style={{
-                        width: "100px",
-                        height: "100px"
-                    }}
-                />
+            <Grid2 size="grow">
+            <Stack spacing={2}>
+                <Item><Typography variant="h6">Direction:</Typography></Item>
+                <Item>
+                    <img src={arrow} style={{
+                        "transform": `rotate(${rotationTarget()}deg)`,
+                        "width": "100px",
+                        "height": "100px"
+                    }}></img>
+                </Item>
+            </Stack>
             </Grid2>
             <Grid2 size={12} style={{ justifyContent: "center", display: "flex", marginTop: "20px" }}>
                 <Button

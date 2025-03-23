@@ -180,10 +180,12 @@ async def record_track(service_config_path: Path, track_name: str, output_dir: P
     # Create a Track message
     track = Track()
 
+    """
+    I have no clue what you are trying to accomplish here
     try:
         # Establish a WebSocket connection to the existing filter_data endpoint
         print("Connecting to the filter data WebSocket...")
-        async with websockets.connect("ws://localhost:8000/filter_data") as websocket:
+        async with websocket.connect("ws://localhost:8000/filter_data") as websocket:
             print("Connected to filter data WebSocket for recording.")
             while recording_active:
                 try:
@@ -210,6 +212,7 @@ async def record_track(service_config_path: Path, track_name: str, output_dir: P
     finally:
         recording_active = False
         print("Recording task completed.")
+    """
 
 
 
@@ -238,7 +241,7 @@ async def stop_recording():
 @app.websocket("/filter_data")
 async def filter_data(
     websocket: WebSocket,
-    every_n: int = 7
+    every_n: int = 10
 ):
     """Coroutine to subscribe to filter state service via websocket.
     
@@ -292,20 +295,12 @@ async def follow_track(track_name: str):
         return {"success": False, "message": "Track follower client not found."}
 
     # Set the track for following
-    try:
-        await client.request_reply("/set_track", TrackFollowRequest(track=track))
-    except asyncio.exceptions.TimeoutError:
-        return {"success": False, "message": "Failed to call /set_track"}
-    except Exception as e:
-        return {"success": False, "message": str(e)}
+    print(track)
+    await client.request_reply("/set_track", TrackFollowRequest(track=track))
 
     # Start following the track
-    try:
-        await client.request_reply("/start", Empty())
-    except asyncio.exceptions.TimeoutError:
-        return {"success": False, "message": "Failed to call /start"}
-    except Exception as e:
-        return {"success": False, "message": str(e)}
+    print("started")
+    await client.request_reply("/start", Empty())
 
     return {"success": True, "message": f"Following track '{track_name}'."}
 
@@ -385,7 +380,7 @@ if __name__ == "__main__":
             self.__dict__.update(kwargs)
     args=Arguments(
         config="/opt/farmng/config.json",
-        port=8000,
+        port=8042,
         debug=False
     )
 

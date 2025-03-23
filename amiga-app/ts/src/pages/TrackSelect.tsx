@@ -17,13 +17,12 @@ export default function TrackSelect() {
     const selectTrack = (tName: string) => setSelectedTrack(tName);
     const editTracks = (newTracks: Array<string>) => setExistingTracks(newTracks);
 
-    const API_URL = "http://localhost:8000";
-
     function fetchTracks() {
-        const trackListEndpoint = `${API_URL}/list_tracks`;
+        const trackListEndpoint = `${import.meta.env.VITE_API_URL}/list_tracks`;
         fetch(trackListEndpoint, { method: "GET" })
         .then((response) => response.json())
         .then((result) => {
+            console.log(`hi ${result}`);
             setExistingTracks(result["tracks"]);
         })
         .catch((err) => console.log(err));
@@ -41,7 +40,6 @@ export default function TrackSelect() {
                         selectTrack={selectTrack} 
                         tracks={existingTracks} 
                         editTracks={editTracks}
-                        apiUrl={API_URL}  // Pass the API URL here
                     />
                 );
             case "run":

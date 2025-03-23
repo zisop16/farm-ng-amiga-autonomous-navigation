@@ -1,2 +1,4 @@
-amiga-app/venv/
-amiga-app/manifest.json
+./venv/
+./manifest.json
+./ts/.env
+./__pycache__/

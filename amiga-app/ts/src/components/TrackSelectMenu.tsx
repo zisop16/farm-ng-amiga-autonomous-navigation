@@ -10,7 +10,6 @@ interface TrackSelectProps {
     selectTrack: (tName: string) => void,
     tracks: Array<string>,
     editTracks: (newTracks: Array<string>) => void,
-    apiUrl: string  // New prop for API URL
 };
 
 
@@ -56,7 +55,7 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
         });
     
         // Make API call to rename track
-        fetch(`${props.apiUrl}/edit_track`, {
+        fetch(`${import.meta.env.VITE_API_URL}/edit_track`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
