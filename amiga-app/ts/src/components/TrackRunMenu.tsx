@@ -19,6 +19,20 @@ export default function TrackRunMenu(props: TrackRunProps) {
     const [currentLocation, setCurrentLocation] = useState(Vec2.Zero);
     const [startPosition, setStartPosition] = useState(Vec2.Zero);
     const [rotationAngle, updateRotationAngle] = useState(0);
+    const [endPosition, setEndPosition] = useState(Vec2.Zero);
+    const [elapsedTime, setElapsedTime] = useState(0);
+    const [isRunning, setIsRunning] = useState(false);
+
+    useEffect(() => {
+        let timer: NodeJS.Timeout;
+        if (isRunning) {
+            timer = setInterval(() => {
+                setElapsedTime((prev) => prev + 1);
+            }, 1000);
+        }
+        return () => clearInterval(timer);
+    }, [isRunning]);
+
 
     useEffect(() => {
         const detailSocket = new WebSocket(
@@ -66,6 +80,27 @@ export default function TrackRunMenu(props: TrackRunProps) {
         return diff.Mag();
     }
 
+    function fetchEndingPoint() {
+        const trackDataEndpoint = `${API_URL}/get_track/${props.selectedTrack}`;
+        fetch(trackDataEndpoint, { method: "GET" })
+        .then((response) => response.json())
+        .then((result) => {
+            const waypoints = result["waypoints"];
+            const last = waypoints[waypoints.length - 1];  // Get final waypoint
+
+            const endPos = last["aFromB"]["translation"];  // Store final position
+
+            setEndPosition(new Vec2(endPos.x, endPos.y));
+        })
+        .catch((err) => console.log(err));
+    }
+
+    function getRemainingDistance() {
+        const diff: Vec2 = endPosition.Sub(currentLocation);
+        return diff.Mag();
+    }
+        
+
     // Returns the angle in radians between the robot's current rotation
     // and the angle it needs to rotate in order to be facing a straight line towards
     // the starting position
@@ -80,6 +115,8 @@ export default function TrackRunMenu(props: TrackRunProps) {
     }
 ///follow//
 function followTrack() {
+    setElapsedTime(0);
+    setIsRunning(true);
     const followTrackEndpoint = `${API_URL}/follow/${props.selectedTrack}`;
     fetch(followTrackEndpoint, {
         method: "POST",
@@ -109,6 +146,7 @@ function followTrack() {
 ////
 //pause//
 function pauseTrack() {
+    setIsRunning(false);
     const pauseTrackEndpoint = `${API_URL}/pause_following/`;
     fetch(pauseTrackEndpoint, {
         method: "POST",
@@ -133,6 +171,7 @@ function pauseTrack() {
 }
 ////resume////
 function resumeTrack() {
+    setIsRunning(true);
     const resumeTrackEndpoint = `${API_URL}/resume_following/`;
     fetch(resumeTrackEndpoint, {
         method: "POST",
@@ -164,6 +203,8 @@ return (
         <Grid2 container rowSpacing={2} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <Grid2 size={12}>
                 <Typography variant="h6">Distance: {twoDigits(getDist())}</Typography>
+                <Typography variant="h6">Remaining Distance: {twoDigits(getRemainingDistance())}</Typography>
+                <Typography variant="h6">Elapsed Time: {Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')}</Typography>        
             </Grid2>
             <Grid2 size={12} style={{ justifyContent: "center", display: "flex" }}>
                 <Typography variant="h6">
