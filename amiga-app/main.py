@@ -114,6 +114,27 @@ async def get_track(track_name: str):
         "waypoints": waypoints
     }
 
+@app.get("/delete_track/{track_name}")
+    async def delete_track(track_name: str):
+        """Deletes a JSON track file from the  `TRACKS_DIR` directory."""
+        if not track_name:
+            raise HTTPException(status_code=400, detail="Empty path name passed")
+        track_name = track_name.strip()
+        json_path = Path(TRACKS_DIR) / (track_name + ".json")
+
+        if not json_path.resolve().parent == Path(TRACKS_DIR) or not json_path.resolve().is_absolute():
+            raise HTTPException(status_code=403, detail="Trying to delete file outside tracks directory")
+
+        if not json_path.exists():
+            raise HTTPException(status_code=404, detail="File does not exist")
+
+        try:
+            json_path.unlink()
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+
+        return {"success": True, "message": "Track deleted", "track_name": track_name}
+
 
 # Define Pydantic model for request data
 class EditTrackRequest(BaseModel):

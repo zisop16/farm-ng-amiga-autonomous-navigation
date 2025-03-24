@@ -15,34 +15,70 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
     The add new track button should not add tracks directly into local storage;
     We have to make a call to backend API for the farmer to guide robot and create it, then it is added to backend and fetched
     */
-    function createTrack() {
-        const trimmed = newTrackName.trim();
-        // Make typescript stop complaining about possibility of null
-        const toParse: string | null = localStorage.getItem("trackNames")
-        if (toParse === null) {return;}
-        const trackNames: Array<string> = JSON.parse(toParse);
 
-        if (trackNames.includes(trimmed)) {
-            setDuplicateTrackError(trimmed);
-            return;
-        }
-        // No duplicate track error
-        setDuplicateTrackError("");
-        setCurrentlyCreating(true);
-
-        // Make an API call to start creating track object
+    function getTrackErrorMessage() {
+   	    return duplicateTrackError ? `Track name "${duplicateTrackError}" already exists.` : "";
     }
+
+    function createTrack() {
+	    const trimmed = newTrackName.trim();
+	    
+	    if (!trimmed) {
+		setDuplicateTrackError("Track name cannot be empty.");
+		return;
+	    }
+
+	    const toParse = localStorage.getItem("trackNames");
+	    const trackNames = toParse ? JSON.parse(toParse) : [];
+
+	    if (trackNames.includes(trimmed)) {
+		setDuplicateTrackError(trimmed);
+		return;
+	    }
+
+	    setDuplicateTrackError("");
+	    setCurrentlyCreating(true);
+
+	    // API call to start recording the track
+        const recording = `${import.meta.env.VITE_API_URL}/record/${encodeURIComponent(trimmed)}`;
+	    fetch(recording, {
+		method: "POST",
+		headers: {
+		    "Content-Type": "application/json",
+		},
+	    })
+	    .then(response => response.json())
+	    .then(data => {
+		console.log(data.message);
+	    })
+	    .catch(error => {
+		console.error("Error starting track recording:", error);
+		setCurrentlyCreating(false); // Ensure state is reverted on failure
+	    });
+	}
 
     function endTrackCreation() {
         // Make an API call to stop creating track object
-        setCurrentlyCreating(false);
-    }
-
-    function getTrackErrorMessage(): string {
-        if (duplicateTrackError === "") {
-            return "";
-        }
-        return `Track name: ${duplicateTrackError} already exists`;
+        const stopping = `${import.meta.env.VITE_API_URL}/stop_recording`;
+        fetch(stopping , {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Failed to stop recording");
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log(data.message);
+            setCurrentlyCreating(false);
+        })
+        .catch(error => {
+            console.error("Error stopping recording:", error);
+        });
     }
 
     const boxStyle = {

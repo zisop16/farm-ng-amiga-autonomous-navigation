@@ -20,15 +20,31 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     const [duplicateNameError, setDuplicateNameError] = useState("");
 
     function removeTrack(tName: string): void {
-        
-        props.editTracks(props.tracks.filter(track => track !== tName));
-        
-        
+        const deleting = `${import.meta.env.VITE_API_URL}/delete_track/${encodeURIComponent(tName)}`;
+	    fetch(deleting, {
+            method: "POST", 
+            headers: {
+                "Content-Type": "application/json"
+            }
+	    })
+	    .then(response => {
+		if (!response.ok) {
+		    throw new Error(`Failed to delete track: ${response.statusText}`);
+		}
+		return response.json();
+	    })
+	    .then(data => {
+		console.log("Track deleted successfully:", data.message);
+		props.editTracks(props.tracks.filter(track => track !== tName));
 
-        if (tName === props.selectedTrack) {
-            props.selectTrack("");
-        }
-    }
+		if (tName === props.selectedTrack) {
+		    props.selectTrack("");
+		}
+	    })
+	    .catch(error => {
+		console.error("Error deleting track:", error);
+	    });
+	}
 
     function startEditing(tName: string): void {
         setEditingTrack(tName);
