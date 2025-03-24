@@ -19,6 +19,7 @@ export default function TrackRunMenu(props: TrackRunProps) {
     const [currentLocation, setCurrentLocation] = useState(Vec2.Zero);
     const [startPosition, setStartPosition] = useState(Vec2.Zero);
     const [rotationAngle, updateRotationAngle] = useState(0);
+    const [endPosition, setEndPosition] = useState(Vec2.Zero);
 
     useEffect(() => {
         // go to ws:// instead of http://
@@ -66,6 +67,26 @@ export default function TrackRunMenu(props: TrackRunProps) {
 
     function getDist() {
         const diff: Vec2 = currentLocation.Sub(startPosition);
+        return diff.Mag();
+    }
+
+    function fetchEndingPoint() {
+        const trackDataEndpoint = `${import.meta.env.VITE_API_URL}/get_track/${props.selectedTrack}`;
+        fetch(trackDataEndpoint, { method: "GET" })
+        .then((response) => response.json())
+        .then((result) => {
+            const waypoints = result["waypoints"];
+            const last = waypoints[waypoints.length - 1];
+
+            const endPos = last["aFromB"]["translation"];
+
+            setEndPosition(new Vec2(endPos.x, endPos.y));
+        })
+        .catch((err) => console.log(err));
+    }
+
+    function getRemainingDistance() {
+        const diff: Vec2 = endPosition.Sub(currentLocation);
         return diff.Mag();
     }
 
@@ -154,6 +175,7 @@ function resumeTrack() {
 ////
 
 useEffect(fetchStartingPoint, [props.selectedTrack]);
+useEffect(fetchEndingPoint, [props.selectedTrack]);
 
 const Item = styled(Paper)(({ theme }) => ({
     backgroundColor: '#fff',
@@ -176,6 +198,9 @@ return (
                 </Item>
                 <Item>
                     <Typography variant="h4" style={{height: "100px"}}>{twoDigits(getDist())}<br></br>meters</Typography>
+                </Item>
+                <Item>
+                    <Typography variant="h6">Remaining Distance: {twoDigits(getRemainingDistance())}</Typography>
                 </Item>
             </Stack>
             </Grid2>
