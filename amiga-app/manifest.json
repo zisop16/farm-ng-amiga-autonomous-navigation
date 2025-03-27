@@ -1,15 +1,15 @@
 {
   "services": {
-    "aaron-app": {
-      "name": "aaron-app",
+    "danny-app": {
+      "name": "danny-app",
       "type": "app",
-      "exec_cmd": "/mnt/managed_home/farm-ng-user-aaron-romero/Desktop/frontend/amiga-app/venv/bin/python /mnt/managed_home/farm-ng-user-aaron-romero/Desktop/frontend/amiga-app/main.py",
+      "exec_cmd": "/mnt/managed_home/farm-ng-user-danny/farm-ng-amiga-autonomous-navigation/amiga-app/venv/bin/python /mnt/managed_home/farm-ng-user-danny/farm-ng-amiga-autonomous-navigation/amiga-app/backend/main.py",
       "args": [
         ""
       ],
       "autostart": true,
-      "app_route": "8042",
-      "display_name": "Aaron App"
+      "app_route": "8044",
+      "display_name": "Danny App"
     }
   }
 }

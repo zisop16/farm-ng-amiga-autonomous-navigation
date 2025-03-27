@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -91,6 +92,8 @@ if __name__ == "__main__":
         service_config_list.configs.append(config)
 
     event_manager = EventClientSubscriptionManager(config_list=service_config_list)
+
+    subprocess.Popen(["python", "cameraBackend/oakManager.py"])
 
     # run the server
     uvicorn.run(app, host="0.0.0.0", port=args.port)  # noqa: S104
