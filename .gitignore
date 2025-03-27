@@ -1,2 +1,3 @@
 amiga-app/venv/
 amiga-app/manifest.json
+__pycache__/
