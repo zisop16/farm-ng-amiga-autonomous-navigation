@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import subprocess
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -32,9 +31,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
+from multiprocessing import Process, Queue
+
 from config import *
 
 from routers import tracks, record, follow
+
+from cameraBackend.oakManager import startCameras
 
 
 @asynccontextmanager
@@ -93,7 +96,10 @@ if __name__ == "__main__":
 
     event_manager = EventClientSubscriptionManager(config_list=service_config_list)
 
-    subprocess.Popen(["python", "cameraBackend/oakManager.py"])
+    queue = Queue()
+    oakManager = Process(target=startCameras, args=(queue,))
+    oakManager.start()
+    print(f"camera PID: {oakManager.pid}")
 
     # run the server
     uvicorn.run(app, host="0.0.0.0", port=args.port)  # noqa: S104
