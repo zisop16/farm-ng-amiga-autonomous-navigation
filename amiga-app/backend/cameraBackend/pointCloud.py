@@ -1,12 +1,17 @@
 # Modified code from
 # https://github.com/luxonis/depthai-experiments/blob/master/gen2-multiple-devices/rgbd-pointcloud-fusion/point_cloud_visualizer.py
 
+
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import open3d as o3d
-from camera import Camera
+from .camera import Camera
 from typing import List
 import numpy as np
 import datetime
-from ..config import POINTCLOUD_DATA_DIR
+from config import POINTCLOUD_DATA_DIR
 
 
 class PointCloudFusion:

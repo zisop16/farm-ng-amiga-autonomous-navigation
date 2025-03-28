@@ -1,12 +1,16 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from multiprocessing import Process, Queue
 import depthai as dai
-import oakService
+from cameraBackend import oakService
 from time import sleep
 import signal
 import os
 from typing import List
-from camera import Camera
-from pointCloud import PointCloudFusion
+from cameraBackend.camera import Camera
+from cameraBackend.pointCloud import PointCloudFusion
 
 cameras: List[Camera] = []
 cameraIps = [
@@ -38,9 +42,11 @@ CAMERA_PORT = "5000"
 def startCameras(queue = None):
     device_infos = dai.Device.getAllAvailableDevices()
     device_infos.sort(key=lambda x: x.name, reverse=True) # Sort by ip
+    print(device_infos)
     for device_info in device_infos:
         if device_info.name == "10.95.76.10": continue
         cameras.append(Camera(device_info, CAMERA_PORT))
+        sleep(2)
 
     pointCloudFusion = PointCloudFusion(cameras)
 
@@ -57,4 +63,5 @@ def startCameras(queue = None):
 
     
 if __name__ == "__main__":
-    startCameras()
+    q = Queue()
+    startCameras(q)

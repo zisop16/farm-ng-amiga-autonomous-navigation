@@ -98,6 +98,8 @@ if __name__ == "__main__":
 
     queue = Queue()
     oakManager = Process(target=startCameras, args=(queue,))
+    oakManager.start()
+    print(f"camera PID: {oakManager.pid}")
 
     # run the server
     uvicorn.run(app, host="0.0.0.0", port=args.port)  # noqa: S104

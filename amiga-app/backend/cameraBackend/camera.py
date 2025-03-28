@@ -2,14 +2,18 @@
 # https://github.com/luxonis/depthai-experiments/blob/master/gen2-multiple-devices/rgbd-pointcloud-fusion/camera.py
 # https://github.com/luxonis/depthai-python/blob/main/examples/ToF/tof_depth.py
 
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import depthai as dai
 import cv2
 import numpy as np
 import open3d as o3d
 from typing import List
-from syncQueue import SyncQueue
+from .syncQueue import SyncQueue
 
-from ..config import CALIBRATION_DATA_DIR, MIN_RANGE_MM, MAX_RANGE_MM
+from config import CALIBRATION_DATA_DIR, MIN_RANGE_MM, MAX_RANGE_MM
 
 FPS = 5
 
@@ -35,7 +39,7 @@ class Camera:
 
         self._load_calibration()
 
-        print("=== Connected to " + self.device_info.getMxId())
+        print("=== Connected to " + self.device_info.name)
 
     def __del__(self):
         self.device.close()
@@ -48,12 +52,13 @@ class Camera:
             self.cam_to_world = extrinsics["cam_to_world"]
             self.world_to_cam = extrinsics["world_to_cam"]
         except:
-            raise RuntimeError(f"Could not load calibration data for camera {self.camera_ip} from {path}!")
+            #raise RuntimeError(f"Could not load calibration data for camera {self.camera_ip} from {path}!")
+            print("No calibration data for camera")
 
         calibration = self.device.readCalibration()
         self.intrinsics = calibration.getCameraIntrinsics(
             # TODO: Figure out boardsocket differences
-            # dai.CameraBoardSocket.RGB, 
+            dai.CameraBoardSocket.RGB, 
             dai.Size2f(*self.image_size)
         )
 
@@ -161,11 +166,11 @@ class Camera:
         xout_image.setStreamName("image")
         cam_rgb = pipeline.createColorCamera()
         cam_rgb.setBoardSocket(dai.CameraBoardSocket.CAM_C)
-        cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
+        cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_800_P)
         cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
-        cam_rgb.setIspScale(1, 3)
+        cam_rgb.setIspScale(1, 2)
         cam_rgb.setFps(FPS)
-        cam_rgb.setVideoSize(640, 400)
+        #cam_rgb.setVideoSize(640, 400)
         # cam_rgb.initialControl.setManualFocus(130)
 
         cam_rgb.isp.link(xout_image.input)
