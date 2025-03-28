@@ -10,6 +10,13 @@ SERVICE_CONFIG_PATH = os.getcwd() + "/service_config.json"
 # Directory where track JSON files are stored
 TRACKS_DIR = os.getcwd() + "/tracks/"
 
+POINTCLOUD_DATA_DIR = os.getcwd() + "/pointcloud_data/"
+
+# Camera configs
+CALIBRATION_DATA_DIR = os.getcwd() + "/calibration_data/"
+MIN_RANGE_MM = 100
+MAX_RANGE_MM = 1000
+
 # Global process handler for Nav Logger
 gps_logging_process: Optional[subprocess.Popen] = None
 
