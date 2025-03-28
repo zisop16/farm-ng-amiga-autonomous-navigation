@@ -9,8 +9,9 @@ interface TrackSelectProps {
     selectedTrack: string,
     selectTrack: (tName: string) => void,
     tracks: Array<string>,
-    editTracks: (newTracks: Array<string>) => void
+    editTracks: (newTracks: Array<string>) => void,
 };
+
 
 export default function TrackSelectMenu(props: TrackSelectProps) {
     const [editingTrack, setEditingTrack] = useState<string | null>(null);
@@ -19,15 +20,31 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     const [duplicateNameError, setDuplicateNameError] = useState("");
 
     function removeTrack(tName: string): void {
-        
-        props.editTracks(props.tracks.filter(track => track !== tName));
-        
-        
+        const deleting = `${import.meta.env.VITE_API_URL}/delete_track/${encodeURIComponent(tName)}`;
+	    fetch(deleting, {
+            method: "POST", 
+            headers: {
+                "Content-Type": "application/json"
+            }
+	    })
+	    .then(response => {
+		if (!response.ok) {
+		    throw new Error(`Failed to delete track: ${response.statusText}`);
+		}
+		return response.json();
+	    })
+	    .then(data => {
+		console.log("Track deleted successfully:", data.message);
+		props.editTracks(props.tracks.filter(track => track !== tName));
 
-        if (tName === props.selectedTrack) {
-            props.selectTrack("");
-        }
-    }
+		if (tName === props.selectedTrack) {
+		    props.selectTrack("");
+		}
+	    })
+	    .catch(error => {
+		console.error("Error deleting track:", error);
+	    });
+	}
 
     function startEditing(tName: string): void {
         setEditingTrack(tName);
@@ -35,36 +52,59 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
         setDuplicateNameError("");
     }
 
-    
+    ///////////
     function saveTrackName(oldName: string): void {
         const trimmedName = editedName.trim();
-
+    
         if (!trimmedName || (trimmedName !== oldName && props.tracks.includes(trimmedName))) {
             setDuplicateNameError(trimmedName);
             setEditedName(oldName);
             return;
         }
-
-        const newTrackNames = props.tracks.map((t, i) => {
+    
+        const newTrackNames = props.tracks.map((t) => {
             if (t === oldName) {
                 return trimmedName;
             } else {
                 return t;
             }
         });
-
-        props.editTracks(newTrackNames);
-        // Make api call
-        // localStorage.setItem('trackNames', JSON.stringify(newTrackNames));
-
-        if (props.selectedTrack === oldName) {
-            props.selectTrack(trimmedName);
-        }
-
-        setEditingTrack(null);
-        setDuplicateNameError("");
+    
+        // Make API call to rename track
+        fetch(`${import.meta.env.VITE_API_URL}/edit_track`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                current_name: oldName,  // Proper JSON structure for the Pydantic model
+                new_name: trimmedName
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to rename track: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log("Track renamed successfully:", data.message);
+            props.editTracks(newTrackNames);
+    
+            if (props.selectedTrack === oldName) {
+                props.selectTrack(trimmedName);
+            }
+    
+            setEditingTrack(null);
+            setDuplicateNameError("");
+        })
+        .catch(error => {
+            console.error("Error renaming track:", error);
+        });
     }
-
+    
+    
+///////////
     const iconStyle = {
         fontSize: 45
     };
@@ -85,6 +125,7 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
                 {props.tracks.map((tName: string) => {
                     return (
                         <ListItem
+                            key={tName}
                             secondaryAction={
                                 <>
                                     {editingTrack === tName ? (

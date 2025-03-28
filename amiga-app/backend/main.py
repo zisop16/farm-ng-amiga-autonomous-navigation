@@ -45,10 +45,31 @@ async def lifespan(app: FastAPI):
     global event_manager
     print("Initializing App...")
 
-    if event_manager:
-        asyncio.create_task(event_manager.update_subscriptions())
+    # config with all the configs
+    base_config_list: EventServiceConfigList = proto_from_json_file(
+        args.config, EventServiceConfigList()
+    )
 
-    yield  # Allows FastAPI to properly initialize
+    # filter out services to pass to the events client manager
+    service_config_list = EventServiceConfigList()
+    for config in base_config_list.configs:
+        if config.port == 0:
+            continue
+        service_config_list.configs.append(config)
+
+    event_manager = EventClientSubscriptionManager(config_list=service_config_list)
+
+    queue = Queue()
+    oak_manager = Process(target=startCameras, args=(queue,))
+    oak_manager.start()
+    
+    asyncio.create_task(event_manager.update_subscriptions())
+
+    yield {
+        "event_manager": event_manager,
+        "oak_manager": oak_manager
+    } 
+
     print("Shutting down...")
 
 
@@ -82,24 +103,8 @@ if __name__ == "__main__":
             "/",
             StaticFiles(directory=str(react_build_directory.resolve()), html=True),
         )
-    # config with all the configs
-    base_config_list: EventServiceConfigList = proto_from_json_file(
-        args.config, EventServiceConfigList()
-    )
-
-    # filter out services to pass to the events client manager
-    service_config_list = EventServiceConfigList()
-    for config in base_config_list.configs:
-        if config.port == 0:
-            continue
-        service_config_list.configs.append(config)
-
-    event_manager = EventClientSubscriptionManager(config_list=service_config_list)
-
-    queue = Queue()
-    oakManager = Process(target=startCameras, args=(queue,))
-    oakManager.start()
-    print(f"camera PID: {oakManager.pid}")
+    
+    # print(f"camera PID: {oakManager.pid}")
 
     # run the server
     uvicorn.run(app, host="0.0.0.0", port=args.port)  # noqa: S104

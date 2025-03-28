@@ -2,3 +2,6 @@ amiga-app/venv/
 amiga-app/manifest.json
 __pycache__/
 amiga-app/.cache/
+
+**/__pycache__/
+amiga-app/backend/cameraBackend/.cache/

@@ -16,8 +16,6 @@ export default function TrackSelect() {
 
     const selectTrack = (tName: string) => setSelectedTrack(tName);
     const editTracks = (newTracks: Array<string>) => setExistingTracks(newTracks);
-
-    const API_URL = "http://localhost:8044";
     
 
     useEffect(() => {
@@ -28,7 +26,7 @@ export default function TrackSelect() {
         }, []);
 
     function fetchTracks() {
-        const trackListEndpoint = `${API_URL}/list_tracks`;
+        const trackListEndpoint = `${import.meta.env.VITE_API_URL}/list_tracks`;
         fetch(trackListEndpoint, { method: "GET" })
         .then((response) => response.json())
         .then((result) => {
@@ -120,4 +118,3 @@ export default function TrackSelect() {
         </>
     );
 }
-
