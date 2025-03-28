@@ -1,3 +1,7 @@
 farm-ng-amiga
 fastapi
 uvicorn[standard]
+
+depthai
+opencv-python
+open3d==0.18.0
