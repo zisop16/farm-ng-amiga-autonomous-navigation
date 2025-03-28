@@ -5,7 +5,7 @@ const ExitButton: React.FC = () => {
     const [appData, setAppData] = useState<{ [key: string]: any }>({});
 
     const handleClick = () => {
-        const baseEndpoint = `http://${window.location.hostname}:8001/systemctl_action/`;
+        const baseEndpoint = `http://${window.location.hostname}:8000/systemctl_action/`;
 
         const requestBody = {
             account_name: appData.account,
@@ -34,7 +34,7 @@ const ExitButton: React.FC = () => {
     };
 
     useEffect(() => {
-        const baseEndpoint = `http://${window.location.hostname}:8001/custom_app_info/${window.location.port}`;
+        const baseEndpoint = `http://${window.location.hostname}:8000/custom_app_info/${window.location.port}`;
 
         fetch(baseEndpoint)
             .then((response) => response.json())
