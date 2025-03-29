@@ -16,10 +16,13 @@ from __future__ import annotations
 
 import sys
 import os
+from pathlib import Path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Navigate one directory out of the location of main.py
+os.chdir(f"{Path(__file__).parent}/..")
 
 import asyncio
-from pathlib import Path
+
 
 import uvicorn
 from farm_ng.core.event_client_manager import EventClientSubscriptionManager

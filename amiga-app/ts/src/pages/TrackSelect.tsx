@@ -13,7 +13,7 @@ export default function TrackSelect() {
     const [selectedTrack, setSelectedTrack] = React.useState("");
     const [selectedButton, changeSelectedButton] = React.useState("select");
     const [existingTracks, setExistingTracks] = React.useState([""]);
-    const [tracksUpdate, setTracksUpdate] = React.useState(false);
+    const [tracksUpdate, setTracksUpdate] = React.useState(true);
 
     const selectTrack = (tName: string) => setSelectedTrack(tName);
     const editTracks = (newTracks: Array<string>) => setExistingTracks(newTracks);
@@ -25,7 +25,8 @@ export default function TrackSelect() {
         fetch(trackListEndpoint, { method: "GET" })
         .then((response) => response.json())
         .then((result) => {
-            setExistingTracks(result["tracks"]);
+            const trackArr = result["tracks"];
+            setExistingTracks(trackArr);
         })
         .catch((err) => console.log(err));
         setTracksUpdate(false);
