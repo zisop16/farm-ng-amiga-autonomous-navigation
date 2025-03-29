@@ -67,7 +67,10 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
             body: JSON.stringify({
                 current_name: oldName,  // Proper JSON structure for the Pydantic model
                 new_name: trimmedName
-            })
+            }),
+            headers: {
+                "Content-Type": "application/json"
+            }
         })
         .then(response => {
             if (!response.ok) {

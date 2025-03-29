@@ -3,6 +3,7 @@ import { styled } from '@mui/material/styles';
 import React, { useEffect, useState } from "react";
 import { Vec2, FromPolar, twoDigits } from "../utils/Vec2";
 import arrow from "../icons/direction-arrow.png"
+import TrackRenderer from "./TrackRenderer"
 
 interface TrackRunProps {
     selectedTrack: string
@@ -245,6 +246,11 @@ return (
                     Resume Track
                 </Button>
             </Grid2>
+            {/*
+            <Grid2 size={12} style={{ justifyContent: "center", display: "flex", marginTop: "20px" }}>
+                <TrackRenderer />
+            </Grid2>
+            */}
         </Grid2>
     </Box>
 );
