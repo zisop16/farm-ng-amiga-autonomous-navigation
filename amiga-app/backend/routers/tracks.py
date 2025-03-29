@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from backend.config import *
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -12,42 +13,50 @@ router = APIRouter()
 async def list_tracks():
     """Lists all JSON track files in the `TRACKS_DIR` directory."""
     if not os.path.exists(TRACKS_DIR):
-        return {"message": "No tracks directory found."}
+        return {"error": "No tracks directory found."}
 
-    track_files = [f[:-5] for f in os.listdir(TRACKS_DIR) if f.endswith(".json")]
+    track_names = [f[:-5] for f in os.listdir(TRACKS_DIR) if f.endswith(".json")]
 
-    if not track_files:
-        return {"message": "No tracks available."}
+    if track_names == []:
+        return {"error": "No existing tracks."}
 
-    return {"tracks": track_files}
+    return {"tracks": track_names}
 
-
-@router.get("/delete_track/{track_name}")
-async def delete_track(track_name: str):
+@router.post("/delete_track/{track_name}")
+async def delete_track(track_name):
     """Deletes a JSON track file from the  `TRACKS_DIR` directory."""
-    if not track_name:
-        raise HTTPException(status_code=400, detail="Empty path name passed")
-    track_name = track_name.strip()
     json_path = Path(TRACKS_DIR) / (track_name + ".json")
-
-    if (
-        not json_path.resolve().parent == Path(TRACKS_DIR)
-        or not json_path.resolve().is_absolute()
-    ):
-        raise HTTPException(
-            status_code=403, detail="Trying to delete file outside tracks directory"
-        )
-
-    if not json_path.exists():
-        raise HTTPException(status_code=404, detail="File does not exist")
-
     try:
         json_path.unlink()
-    except Exception as e:
-        return {"success": False, "message": str(e)}
+    except FileNotFoundError:
+        return { "error": f"Track: '{track_name}' does not exist"}
 
-    return {"success": True, "message": "Track deleted", "track_name": track_name}
+    return { "message": f"Track: '{track_name}' deleted" }
 
+# Define Pydantic model for request data
+class Edit(BaseModel):
+    current_name: str
+    new_name: str
+
+# Only one definition of the endpoint
+@router.post("/edit_track")
+async def edit_track_name(body: Edit):
+    current_name = body.current_name
+    new_name = body.new_name
+
+    track_path = os.path.join(TRACKS_DIR, f"{current_name}.json")
+    new_track_path = os.path.join(TRACKS_DIR, f"{new_name}.json")
+
+    # Check if the current track file exists
+    if not os.path.exists(track_path):
+        return { "error": f"Track: '{current_name}' does not exist"}
+    
+    # Check if the new track name already exists
+    if os.path.exists(new_track_path):
+        return { "error": f"Track: '{new_name}' already exists"}
+    
+    os.rename(track_path, new_track_path)
+    return {"message": f"Track: '{current_name}' renamed to: '{new_name}'."}
 
 @router.get("/get_track/{track_name}")
 async def get_track(track_name: str):
@@ -55,7 +64,7 @@ async def get_track(track_name: str):
     track_path = os.path.join(TRACKS_DIR, f"{track_name}.json")
 
     if not os.path.exists(track_path):
-        return {"message": f"Track '{track_name}.json' not found."}
+        return {"error": f"Track '{track_name}' not found."}
 
     with open(track_path, "r") as json_file:
         track_data = json.load(json_file)

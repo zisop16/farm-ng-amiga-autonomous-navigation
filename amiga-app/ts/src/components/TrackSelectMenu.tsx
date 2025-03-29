@@ -20,29 +20,20 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     const [duplicateNameError, setDuplicateNameError] = useState("");
 
     function removeTrack(tName: string): void {
-        const deleting = `${import.meta.env.VITE_API_URL}/delete_track/${encodeURIComponent(tName)}`;
-	    fetch(deleting, {
-            method: "POST", 
-            headers: {
-                "Content-Type": "application/json"
-            }
+        const delete_url = `${import.meta.env.VITE_API_URL}/delete_track/${tName}`;
+	    fetch(delete_url, {
+            method: "POST",
 	    })
 	    .then(response => {
-		if (!response.ok) {
-		    throw new Error(`Failed to delete track: ${response.statusText}`);
-		}
-		return response.json();
+            return response.json();
 	    })
 	    .then(data => {
-		console.log("Track deleted successfully:", data.message);
-		props.editTracks(props.tracks.filter(track => track !== tName));
+		    console.log(data.message);
+		    props.editTracks(props.tracks.filter(track => track !== tName));
 
-		if (tName === props.selectedTrack) {
-		    props.selectTrack("");
-		}
-	    })
-	    .catch(error => {
-		console.error("Error deleting track:", error);
+            if (tName === props.selectedTrack) {
+                props.selectTrack("");
+            }
 	    });
 	}
 
@@ -73,9 +64,6 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
         // Make API call to rename track
         fetch(`${import.meta.env.VITE_API_URL}/edit_track`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
             body: JSON.stringify({
                 current_name: oldName,  // Proper JSON structure for the Pydantic model
                 new_name: trimmedName

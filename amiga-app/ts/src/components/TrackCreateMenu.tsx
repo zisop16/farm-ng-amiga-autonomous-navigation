@@ -2,13 +2,15 @@ import { LinearProgress, Typography, TextField, Button, Grid2, Box } from "@mui/
 import React, { useState } from "react";
 
 interface TrackCreateProps {
-    setTrack: (trackName: string) => void,
+    selectTrack: (trackName: string) => void,
+    tracks: Array<string>,
+    forceTracksUpdate: () => void
 };
 
 export default function TrackCreateMenu(props: TrackCreateProps) {
     const [newTrackName, setNewTrackName] = useState("");
-    // This variable will store the track name entered which caused duplicate error
-    const [duplicateTrackError, setDuplicateTrackError] = useState("");
+    // This variable will store the error message associated with creating a given track
+    const [trackCreationError, setTrackCreationError] = useState("");
     const [currentlyCreating, setCurrentlyCreating] = useState(false)
 
     /*
@@ -16,44 +18,37 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
     We have to make a call to backend API for the farmer to guide robot and create it, then it is added to backend and fetched
     */
 
-    function getTrackErrorMessage() {
-   	    return duplicateTrackError ? `Track name "${duplicateTrackError}" already exists.` : "";
-    }
-
     function createTrack() {
 	    const trimmed = newTrackName.trim();
 	    
-	    if (!trimmed) {
-		setDuplicateTrackError("Track name cannot be empty.");
-		return;
+	    if (trimmed === "") {
+		    setTrackCreationError("Track name cannot be empty.");
+		    return;
+	    }
+        if (trimmed.includes("\\") || trimmed.includes("/")) {
+            setTrackCreationError("Track name cannot include the characters \\ or /");
+            return;
+        }
+        console.log(props.tracks, trimmed);
+	    if (props.tracks.includes(trimmed)) {
+		    setTrackCreationError(`Track name: ${trimmed} already exists`);
+		    return;
 	    }
 
-	    const toParse = localStorage.getItem("trackNames");
-	    const trackNames = toParse ? JSON.parse(toParse) : [];
-
-	    if (trackNames.includes(trimmed)) {
-		setDuplicateTrackError(trimmed);
-		return;
-	    }
-
-	    setDuplicateTrackError("");
+	    setTrackCreationError("");
 	    setCurrentlyCreating(true);
 
 	    // API call to start recording the track
         const recording = `${import.meta.env.VITE_API_URL}/record/${encodeURIComponent(trimmed)}`;
-	    fetch(recording, {
-		method: "POST",
-		headers: {
-		    "Content-Type": "application/json",
-		},
-	    })
+	    fetch(recording, { method: "POST",})
 	    .then(response => response.json())
 	    .then(data => {
-		console.log(data.message);
+		    console.log(data.message);
+            props.forceTracksUpdate();
 	    })
 	    .catch(error => {
 		console.error("Error starting track recording:", error);
-		setCurrentlyCreating(false); // Ensure state is reverted on failure
+		    setCurrentlyCreating(false); // Ensure state is reverted on failure
 	    });
 	}
 
@@ -98,8 +93,8 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                         onChange={(e) => setNewTrackName(e.target.value)}
                         placeholder="Enter new track name"
                         disabled={currentlyCreating}
-                        error={duplicateTrackError !== ""}
-                        helperText={getTrackErrorMessage()}
+                        error={trackCreationError !== ""}
+                        helperText={trackCreationError}
                         style={{ width: "250px"}}
                     />
                 </Grid2>

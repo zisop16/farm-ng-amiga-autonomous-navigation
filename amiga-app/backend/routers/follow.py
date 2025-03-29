@@ -35,7 +35,7 @@ async def follow_track(request: Request, track_name: str):
     client = event_manager.clients["track_follower"]
 
     if not track_path.exists():
-        raise HTTPException(status_code=404, detail=f"Track '{track_name}' not found.")
+        return {"error": f"Track: '{track_name} does not exist"}
 
     track: Track = proto_from_json_file(track_path, Track())
 
@@ -50,14 +50,10 @@ async def pause_following(request: Request):
     """Instructs the robot to pause track following."""
     event_manager = request.state.event_manager
     client = event_manager.clients["track_follower"]
-    try:
-        await asyncio.wait_for(client.request_reply("/pause", Empty()), 0.5)
-    except AioRpcError as e:
-        return {"success": False, "message": e.details()}
-    except asyncio.exceptions.TimeoutError:
-        return {"success": False, "message": "Failed to call /pause"}
+    
+    await asyncio.wait_for(client.request_reply("/pause", Empty()), 0.5)
 
-    return {"success": True, "message": "Pausing track following"}
+    return {"message": "Pausing track following"}
 
 
 @router.post("/resume_following")

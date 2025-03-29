@@ -13,19 +13,14 @@ export default function TrackSelect() {
     const [selectedTrack, setSelectedTrack] = React.useState("");
     const [selectedButton, changeSelectedButton] = React.useState("select");
     const [existingTracks, setExistingTracks] = React.useState([""]);
+    const [tracksUpdate, setTracksUpdate] = React.useState(false);
 
     const selectTrack = (tName: string) => setSelectedTrack(tName);
     const editTracks = (newTracks: Array<string>) => setExistingTracks(newTracks);
-    
-
-    useEffect(() => {
-            const storedTrack = localStorage.getItem("trackName");
-            if (storedTrack !== null) {
-                setSelectedTrack(JSON.parse(storedTrack));
-            }
-        }, []);
+    const forceTracksUpdate = () => setTracksUpdate(true);
 
     function fetchTracks() {
+        if (!tracksUpdate) {return;}
         const trackListEndpoint = `${import.meta.env.VITE_API_URL}/list_tracks`;
         fetch(trackListEndpoint, { method: "GET" })
         .then((response) => response.json())
@@ -33,13 +28,14 @@ export default function TrackSelect() {
             setExistingTracks(result["tracks"]);
         })
         .catch((err) => console.log(err));
+        setTracksUpdate(false);
     }
-    useEffect(fetchTracks, []);
+    useEffect(fetchTracks, [tracksUpdate]);
 
     function getMenuComponent() {
         switch(selectedButton) {
             case "add":
-                return <TrackCreateMenu setTrack={selectTrack} />;
+                return <TrackCreateMenu forceTracksUpdate={forceTracksUpdate} selectTrack={selectTrack} tracks={existingTracks}/>;
             case "select":
                 return (<TrackSelectMenu selectedTrack={selectedTrack} selectTrack={selectTrack} tracks={existingTracks} editTracks={editTracks}/>);
             case "run":
