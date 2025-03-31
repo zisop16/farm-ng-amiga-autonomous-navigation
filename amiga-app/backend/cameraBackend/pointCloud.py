@@ -17,14 +17,6 @@ from config import POINTCLOUD_DATA_DIR
 class PointCloudFusion:
     def __init__(self, cameras: List[Camera]):
         self.cameras = cameras
-        self.fused_point_cloud = o3d.geometry.PointCloud()
-
-    def update_fused_point_cloud(self):
-        self.fused_point_cloud.clear()
-
-        for camera in self.cameras:
-            camera.update()
-            self.fused_point_cloud += camera.point_cloud
 
     def align_point_clouds(self):
         voxel_radius = [0.04, 0.02, 0.01]
@@ -69,12 +61,11 @@ class PointCloudFusion:
         for camera in self.cameras:
             o3d.io.write_point_cloud(
                 f"{POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_{camera.camera_ip}.ply",
-                camera.point_cloud,
+                camera.point_cloud
             )
-        o3d.io.write_point_cloud(
-            f"{POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_fused.ply",
-            self.fused_point_cloud,
-        )
 
+        fused_point_cloud = self.cameras[0].point_cloud + self.cameras[1].point_cloud
+        o3d.io.write_point_cloud(
+            f"{POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_fused.ply", fused_point_cloud)
     def quit(self):
         self.running = False

@@ -1,4 +1,4 @@
-from farm_ng.core.event_client_manager import EventClientSubscriptionManager
+# from farm_ng.core.event_client_manager import EventClientSubscriptionManager
 import os
 import json
 from typing import Optional
@@ -21,15 +21,15 @@ MAX_RANGE_MM = 1000
 gps_logging_process: Optional[subprocess.Popen] = None
 
 # Declare event_manager globally to avoid "not initialized" errors
-event_manager: Optional[EventClientSubscriptionManager] = None
+# event_manager: Optional[EventClientSubscriptionManager] = None
 
 # Port
 PORT = 8042
 
-with open(os.getcwd() + "/manifest.json", "r") as file:
-    data = json.load(file)
-
-for child_name, child_info in data["services"].items():
-    app_route = child_info.get("app_route")
-    if app_route:
-        PORT = int(app_route)
+# with open(os.getcwd() + "/manifest.json", "r") as file:
+#     data = json.load(file)
+#
+# for child_name, child_info in data["services"].items():
+#     app_route = child_info.get("app_route")
+#     if app_route:
+#         PORT = int(app_route)

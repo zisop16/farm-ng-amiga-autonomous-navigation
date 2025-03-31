@@ -1,63 +1,72 @@
-# Modified code from
-# https://github.com/luxonis/depthai-experiments/blob/master/gen2-multiple-devices/rgbd-pointcloud-fusion/camera.py
-# https://github.com/luxonis/depthai-python/blob/main/examples/ToF/tof_depth.py
-
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import depthai as dai
 import cv2
 import numpy as np
 import open3d as o3d
 from typing import List
-from .syncQueue import SyncQueue
-
-from config import CALIBRATION_DATA_DIR, MIN_RANGE_MM, MAX_RANGE_MM
-
-FPS = 5
+import config
+from host_sync import HostSync
 
 class Camera:
-    def __init__(self, device_info: dai.DeviceInfo, stream_port: str):
+    def __init__(self, device_info: dai.DeviceInfo, friendly_id: int, show_video: bool = True, show_point_cloud: bool = True):
+        self.show_video = show_video
+        self.show_point_cloud = show_point_cloud
+        self.show_depth = False
         self.device_info = device_info
-        self.camera_ip = device_info.name
-        self.stream_port = stream_port
-
+        self.friendly_id = friendly_id
+        self.mxid = device_info.name
         self._create_pipeline()
         self.device = dai.Device(self.pipeline, self.device_info)
 
         self.device.setIrLaserDotProjectorBrightness(1200)
 
+        self.intrinsic_mat = np.array(self.device.readCalibration().getCameraIntrinsics(dai.CameraBoardSocket.RGB, 3840, 2160))
+        print(self.intrinsic_mat)
+
+
         self.image_queue = self.device.getOutputQueue(name="image", maxSize=10, blocking=False)
         self.depth_queue = self.device.getOutputQueue(name="depth", maxSize=10, blocking=False)
-        self.sync_queue = SyncQueue(["image", "depth"])
+        self.host_sync = HostSync(["image", "depth"])
 
         self.image_frame = None
         self.depth_frame = None
+        self.depth_visualization_frame = None
         self.point_cloud = o3d.geometry.PointCloud()
+
+        # camera window
+        self.window_name = f"[{self.friendly_id}] Camera - mxid: {self.mxid}"
+        if show_video:
+            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(self.window_name, 640, 360)
+
+        # point cloud window
+        if show_point_cloud:
+            self.point_cloud_window = o3d.visualization.Visualizer()
+            self.point_cloud_window.create_window(window_name=f"[{self.friendly_id}] Point Cloud - mxid: {self.mxid}")
+            self.point_cloud_window.add_geometry(self.point_cloud)
+            origin = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.3, origin=[0, 0, 0])
+            self.point_cloud_window.add_geometry(origin)
+            self.point_cloud_window.get_view_control().set_constant_z_far(config.max_range*2)
 
         self._load_calibration()
 
-        print("=== Connected to " + self.device_info.name)
+        print("=== Connected to " + self.device_info.getMxId())
 
     def __del__(self):
         self.device.close()
         print("=== Closed " + self.device_info.getMxId())
 
     def _load_calibration(self):
-        path = f"{CALIBRATION_DATA_DIR}/extrinsics_{self.camera_ip}.npz"
+        path = f"{config.calibration_data_dir}/extrinsics_{self.mxid}.npz"
         try:
             extrinsics = np.load(path)
             self.cam_to_world = extrinsics["cam_to_world"]
             self.world_to_cam = extrinsics["world_to_cam"]
         except:
-            #raise RuntimeError(f"Could not load calibration data for camera {self.camera_ip} from {path}!")
-            print("No calibration data for camera")
+            raise RuntimeError(f"Could not load calibration data for camera {self.mxid} from {path}!")
 
         calibration = self.device.readCalibration()
         self.intrinsics = calibration.getCameraIntrinsics(
-            # TODO: Figure out boardsocket differences
-            dai.CameraBoardSocket.RGB, 
+            dai.CameraBoardSocket.RGB if config.COLOR else dai.CameraBoardSocket.RIGHT, 
             dai.Size2f(*self.image_size)
         )
 
@@ -66,68 +75,18 @@ class Camera:
         )
 
         try:
-            self.point_cloud_alignment = np.load(f"{CALIBRATION_DATA_DIR}/point_cloud_alignment_{self.camera_ip}.npy")
+            self.point_cloud_alignment = np.load(f"{config.calibration_data_dir}/point_cloud_alignment_{self.mxid}.npy")
         except:
-            self.point_cloud_alignment = np.eye(4) # Default to no alignment correction
+            self.point_cloud_alignment = np.eye(4)
 
         print(self.pinhole_camera_intrinsic)
 
     def save_point_cloud_alignment(self):
-        np.save(f"{CALIBRATION_DATA_DIR}/point_cloud_alignment_{self.camera_ip}.npy", self.point_cloud_alignment)
+        np.save(f"{config.calibration_data_dir}/point_cloud_alignment_{self.mxid}.npy", self.point_cloud_alignment)
     
 
     def _create_pipeline(self):
         pipeline = dai.Pipeline()
-
-        # Video encoder node for frontend stream
-        videoEnc = pipeline.create(dai.node.VideoEncoder)
-        videoEnc.setDefaultProfilePreset(FPS, dai.VideoEncoderProperties.Profile.MJPEG)
-
-
-        # Output frontend streaming server node
-        server = pipeline.create(dai.node.Script)
-        videoEnc.bitstream.link(server.inputs['frame']) 
-
-        server.setProcessor(dai.ProcessorType.LEON_CSS)
-        server.inputs['frame'].setBlocking(False)
-        server.inputs['frame'].setQueueSize(1)
-
-        server.setScript(f"""
-        import time
-        import socket
-        from http.server import BaseHTTPRequestHandler, HTTPServer
-
-        class HTTPHandler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                if self.path == '/rgb':
-                    try:
-                        delay = {1/FPS}
-                        self.send_response(200)
-                        self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=--jpgboundary')
-                        self.end_headers()
-                        while True:
-                            frame = node.io['frame'].get()
-
-                            self.wfile.write("--jpgboundary".encode())
-                            self.wfile.write(bytes([13, 10]))
-                            self.send_header('Content-type', 'image/jpeg')
-                            self.send_header('Content-length', str(len(frame.getData())))
-                            self.end_headers()
-                            self.wfile.write(frame.getData())
-                            self.end_headers()
-                            time.sleep(delay)
-
-                    except Exception as ex:
-                        node.warn("Client disconnected")
-
-        class ThreadingSimpleServer(HTTPServer):
-            pass
-
-        with ThreadingSimpleServer(("", {self.stream_port}), HTTPHandler) as httpd:
-            node.warn(f"Serving RGB MJPEG stream at {self.camera_ip + ":" + self.stream_port + "/rgb"}")
-            httpd.serve_forever()
-        """)
-
 
         # Time of Flight to dppth node
         tof = pipeline.create(dai.node.ToF)
@@ -138,7 +97,7 @@ class Camera:
         tofConfig.enableOpticalCorrection = True
         tofConfig.enablePhaseShuffleTemporalFilter = True
         tofConfig.phaseUnwrappingLevel = 1
-        tofConfig.phaseUnwrapErrorThreshold = 200
+        tofConfig.phaseUnwrapErrorThreshold = 230
         # tofConfig.enableTemperatureCorrection = False # Not yet supported
         xinTofConfig = pipeline.create(dai.node.XLinkIn)
         xinTofConfig.setStreamName("tofConfig")
@@ -161,41 +120,83 @@ class Camera:
 
 
         # RGB cam
-        xout_image = pipeline.createXLinkOut()
-        xout_image.setStreamName("image")
-        cam_rgb = pipeline.createColorCamera()
+        cam_rgb = pipeline.create(dai.node.ColorCamera)
         cam_rgb.setBoardSocket(dai.CameraBoardSocket.CAM_C)
         cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_800_P)
         cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
         cam_rgb.setIspScale(1, 2)
-        cam_rgb.setFps(FPS)
+        cam_rgb.setFps(30)
         cam_rgb.setVideoSize(640, 400)
         # cam_rgb.initialControl.setManualFocus(130)
 
+        xout_image = pipeline.createXLinkOut()
+        xout_image.setStreamName("image")
         cam_rgb.isp.link(xout_image.input)
-        cam_rgb.video.link(videoEnc.input)
 
         self.image_size = cam_rgb.getIspSize()
+        print("Size", cam_rgb.getIspSize())
         self.pipeline = pipeline
+
 
     def update(self):
         for queue in [self.depth_queue, self.image_queue]:
             new_msgs = queue.tryGetAll()
             if new_msgs is not None:
                 for new_msg in new_msgs:
-                    self.sync_queue.add(queue.getName(), new_msg)
+                    self.host_sync.add(queue.getName(), new_msg)
 
-        msg_sync = self.sync_queue.get()
+        msg_sync = self.host_sync.get()
         if msg_sync is None:
             return
         
         self.depth_frame = msg_sync["depth"].getFrame()
         self.image_frame = msg_sync["image"].getCvFrame()
+        self.depth_visualization_frame = cv2.normalize(self.depth_frame, None, 255, 0, cv2.NORM_INF, cv2.CV_8UC1)
+        self.depth_visualization_frame = cv2.equalizeHist(self.depth_visualization_frame)
+        self.depth_visualization_frame = cv2.applyColorMap(self.depth_visualization_frame, cv2.COLORMAP_HOT)
+
+        if self.show_video:
+            if self.show_depth:
+                cv2.imshow(self.window_name, self.depth_visualization_frame)
+            else:
+                cv2.imshow(self.window_name, self.image_frame)
+
         rgb = cv2.cvtColor(self.image_frame, cv2.COLOR_BGR2RGB)
         self.rgbd_to_point_cloud(self.depth_frame, rgb)
 
+        if self.show_point_cloud:
+            self.point_cloud_window.update_geometry(self.point_cloud)
+            self.point_cloud_window.poll_events()
+            self.point_cloud_window.update_renderer()
+
+
+    def filter_non_green_points(self,
+    point_cloud: o3d.geometry.PointCloud, visualize: bool = False
+) -> o3d.geometry.PointCloud:
+
+        points = np.asarray(point_cloud.points)
+        colors = np.asarray(point_cloud.colors)
+
+        RED = 0
+        GREEN = 1
+        BLUE = 2
+        mask = (colors[:, GREEN] > colors[:, RED]) & (colors[:, GREEN] > colors[:, BLUE])
+
+        filtered_points = points[mask]
+        filtered_colors = colors[mask]
+
+        filtered_cloud = o3d.geometry.PointCloud()
+        filtered_cloud.points = o3d.utility.Vector3dVector(filtered_points)
+        filtered_cloud.colors = o3d.utility.Vector3dVector(filtered_colors)
+        # if visualize:
+        #     o3d.visualization.draw_geometries([point_cloud])
+        #     o3d.visualization.draw_geometries([filtered_cloud])
+
+        return filtered_cloud
+
+
     def rgbd_to_point_cloud(self, depth_frame, image_frame, downsample=False, remove_noise=False):
-        depth_frame = depth_frame[:400, :] # TODO: Check if this is correct
+        depth_frame = depth_frame[:400, :]
         rgb_o3d = o3d.geometry.Image(image_frame)
         df = np.copy(depth_frame).astype(np.float32)
         # df -= 20
@@ -225,4 +226,4 @@ class Camera:
         # apply point cloud alignment transform
         self.point_cloud.transform(self.point_cloud_alignment)
 
-        return self.point_cloud
+        return self.filter_non_green_points( self.point_cloud )
