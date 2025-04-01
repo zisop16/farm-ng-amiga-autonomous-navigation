@@ -183,8 +183,8 @@ class Camera:
         VAL = 2
         green_lower_hue = 65/360.
         green_upper_hue = 165/360.
-        lower_sat = .10
-        lower_value = .20
+        lower_sat = .30
+        lower_value = .30
 
         hues = colors_hsv[:, HUE]
         saturations = colors_hsv[:, SAT]
