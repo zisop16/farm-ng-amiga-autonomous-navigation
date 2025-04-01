@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import open3d as o3d
 from typing import List
+from matplotlib import colors
 import config
 from host_sync import HostSync
 
@@ -170,20 +171,30 @@ class Camera:
             self.point_cloud_window.update_renderer()
 
 
-    def filter_non_green_points(self,
-    point_cloud: o3d.geometry.PointCloud, visualize: bool = False
-) -> o3d.geometry.PointCloud:
+    def filter_non_green_points(self, point_cloud: o3d.geometry.PointCloud, visualize: bool = False) -> o3d.geometry.PointCloud:
 
-        points = np.asarray(point_cloud.points)
-        colors = np.asarray(point_cloud.colors)
+        pc_points = np.asarray(point_cloud.points)
+        pc_colors = np.asarray(point_cloud.colors)
 
-        RED = 0
-        GREEN = 1
-        BLUE = 2
-        mask = (colors[:, GREEN] > colors[:, RED]) & (colors[:, GREEN] > colors[:, BLUE])
+        colors_hsv = colors.rgb_to_hsv(pc_colors)
 
-        filtered_points = points[mask]
-        filtered_colors = colors[mask]
+        HUE = 0
+        SAT = 1
+        VAL = 2
+        green_lower_hue = 65/360.
+        green_upper_hue = 165/360.
+        lower_sat = .10
+        lower_value = .20
+
+        hues = colors_hsv[:, HUE]
+        saturations = colors_hsv[:, SAT]
+        values = colors_hsv[:, VAL]
+
+
+        mask = (hues >= green_lower_hue) and (hues <= green_upper_hue) and (saturations > lower_sat) and (values > lower_value)
+
+        filtered_points = pc_points[mask]
+        filtered_colors = pc_colors[mask]
 
         filtered_cloud = o3d.geometry.PointCloud()
         filtered_cloud.points = o3d.utility.Vector3dVector(filtered_points)
