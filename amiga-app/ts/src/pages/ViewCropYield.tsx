@@ -1,22 +1,53 @@
-import { Container, Grid2, Typography } from "@mui/material";
+import { Container, Grid, Typography } from "@mui/material";
 import BackButton from "../components/BackButton";
+import TrackYieldSelect from "../components/TrackYieldSelect";
+import TrackYieldInfo from "../components/TrackYieldInfo";
+import { useState } from "react";
+
+const dummyRuns = ["Path Run Name 1", "Path Run Name 2", "Path Run Name 3"];
+const dummyInfo = {
+    "Path Run Name 1": { date: "04/01/25", totalYield: 200, pathLength: 15 },
+    "Path Run Name 2": { date: "04/02/25", totalYield: 180, pathLength: 12 },
+    "Path Run Name 3": { date: "04/03/25", totalYield: 210, pathLength: 17 }
+};
 
 export default function ViewCropYield() {
+    const [selectedRun, setSelectedRun] = useState<string>("");
+
+    const selectedInfo = dummyInfo[selectedRun];
+
     return (
-        <>
-            <Grid2 container spacing={0} rowSpacing={20} style={{ margin: "30px 0 0 30px" }}>
-                <Grid2 size={1} display="flex" justifyContent="center" alignItems="center">
+        <Container sx={{ mt: 4 }}>
+            <Grid container spacing={4}>
+                <Grid item xs={12} display="flex" alignItems="center">
                     <BackButton />
-                </Grid2>
-                <Grid2 size={10} display="flex" justifyContent="center" alignItems="center">
-                    <Typography variant="h2">View Crop Yield</Typography>
-                </Grid2>
-                <Container>
-                    <Typography>Placeholder</Typography>
-                </Container>
+                    <Typography variant="h4" sx={{ ml: 2 }}>
+                        View Crop Yield
+                    </Typography>
+                </Grid>
 
-            </Grid2>
-        </>
+                <Grid item xs={12} md={4}>
+                    <TrackYieldSelect
+                        runs={dummyRuns}
+                        selectedRun={selectedRun}
+                        onSelectRun={setSelectedRun}
+                    />
+                </Grid>
 
-    )
+                <Grid item xs={12} md={8}>
+                    {selectedRun ? (
+                        <TrackYieldInfo
+                            date={selectedInfo.date}
+                            totalYield={selectedInfo.totalYield}
+                            pathLength={selectedInfo.pathLength}
+                        />
+                    ) : (
+                        <Typography variant="body1" mt={2}>
+                            Select a path run to view its yield info.
+                        </Typography>
+                    )}
+                </Grid>
+            </Grid>
+        </Container>
+    );
 }
