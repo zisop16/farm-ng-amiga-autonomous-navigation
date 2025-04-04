@@ -39,7 +39,7 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
 	    setCurrentlyCreating(true);
 
 	    // API call to start recording the track
-        const recording = `${import.meta.env.VITE_API_URL}/record/${encodeURIComponent(trimmed)}`;
+        const recording = `${import.meta.env.VITE_API_URL}/record/${trimmed}`;
 	    fetch(recording, { method: "POST",})
 	    .then(response => response.json())
 	    .then(data => {

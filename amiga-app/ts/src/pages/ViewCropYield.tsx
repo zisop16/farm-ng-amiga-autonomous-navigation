@@ -4,8 +4,14 @@ import TrackYieldSelect from "../components/TrackYieldSelect";
 import TrackYieldInfo from "../components/TrackYieldInfo";
 import { useState } from "react";
 
+interface TrackRun {
+    date: string,
+    totalYield: number,
+    pathLength: number
+};
+
 const dummyRuns = ["Path Run Name 1", "Path Run Name 2", "Path Run Name 3"];
-const dummyInfo = {
+const dummyInfo: {[id: string]: TrackRun}  = {
     "Path Run Name 1": { date: "04/01/25", totalYield: 200, pathLength: 15 },
     "Path Run Name 2": { date: "04/02/25", totalYield: 180, pathLength: 12 },
     "Path Run Name 3": { date: "04/03/25", totalYield: 210, pathLength: 17 }
@@ -14,7 +20,7 @@ const dummyInfo = {
 export default function ViewCropYield() {
     const [selectedRun, setSelectedRun] = useState<string>("");
 
-    const selectedInfo = dummyInfo[selectedRun];
+    const selectedInfo: TrackRun = dummyInfo[selectedRun];
 
     return (
         <Container sx={{ mt: 4 }}>
