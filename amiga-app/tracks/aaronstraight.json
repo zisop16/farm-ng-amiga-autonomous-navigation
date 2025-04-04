@@ -1,0 +1,56 @@
+{
+  "waypoints": [
+    {
+      "aFromB": {
+        "rotation": {
+          "unitQuaternion": {
+            "imag": {
+              "z": -0.4473425001424594
+            },
+            "real": 0.894362727066761
+          }
+        },
+        "translation": {
+          "x": 6491.824701918853,
+          "y": -5618.055458439457
+        }
+      },
+      "frameA": "world",
+      "frameB": "robot",
+      "tangentOfBInA": {
+        "linearVelocity": {
+          "x": -2.4327598809673978e-05
+        },
+        "angularVelocity": {
+          "z": -0.0030603692340575466
+        }
+      }
+    },
+    {
+      "aFromB": {
+        "rotation": {
+          "unitQuaternion": {
+            "imag": {
+              "z": -0.7482351367457004
+            },
+            "real": 0.6634336290384615
+          }
+        },
+        "translation": {
+          "x": 6484.078823163525,
+          "y": -5622.45372110899
+        }
+      },
+      "frameA": "world",
+      "frameB": "robot",
+      "tangentOfBInA": {
+        "linearVelocity": {
+          "x": 0.6264770710051596
+        },
+        "angularVelocity": {
+          "z": 0.003847847231538361
+        }
+      }
+    }
+  ]
+}

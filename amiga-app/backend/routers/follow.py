@@ -6,6 +6,7 @@ from farm_ng.core.events_file_reader import proto_from_json_file
 from farm_ng.track.track_pb2 import (
     Track,
     TrackFollowRequest,
+    TrackFollowerState
 )
 
 from fastapi import APIRouter
@@ -21,6 +22,7 @@ from google.protobuf.json_format import MessageToJson
 from farm_ng.core.uri_pb2 import Uri
 
 from backend.config import *
+import base64
 
 
 
@@ -42,7 +44,20 @@ async def follow_track(request: Request, track_name: str):
     await client.request_reply("/set_track", TrackFollowRequest(track=track))
     await client.request_reply("/start", Empty())
 
-    return {"success": True, "message": f"Following track '{track_name}'."}
+    return {"message": f"Following track '{track_name}'."}
+
+@router.get("/follow/state")
+async def follower_state(request: Request):
+    event_manager = request.state.event_manager
+    client = event_manager.clients["track_follower"]
+
+    json_response = json.loads(MessageToJson(await client.request_reply("/get_state", Empty())))
+    
+    payload_bytes = base64.b64decode(json_response["payload"])
+    state  = TrackFollowerState.FromString(payload_bytes)
+    controllable = state.status.robot_status.controllable
+    
+    return {"controllable": controllable}
 
 
 @router.post("/pause_following/")
@@ -51,24 +66,12 @@ async def pause_following(request: Request):
     event_manager = request.state.event_manager
     client = event_manager.clients["track_follower"]
     
-    await asyncio.wait_for(client.request_reply("/pause", Empty()), 0.5)
+    try:
+        await client.request_reply("/pause", Empty())
+    except AioRpcError:
+        return {"error": "Not currently following a track"}
 
     return {"message": "Pausing track following"}
-
-
-@router.post("/resume_following")
-async def resume_following(request: Request):
-    """Instructs the robot to resume track following."""
-    event_manager = request.state.event_manager
-    client = event_manager.clients["track_follower"]
-    try:
-        await asyncio.wait_for(client.request_reply("/resume", Empty()), 0.5)
-    except AioRpcError as e:
-        return {"success": False, "message": e.details()}
-    except asyncio.exceptions.TimeoutError:
-        return {"success": False, "message": "Failed to call /resume"}
-
-    return {"success": True, "message": "Resuming track following"}
 
 
 @router.post("/stop_following")
@@ -77,8 +80,8 @@ async def stop_following(request: Request):
     event_manager = request.state.event_manager
     client = event_manager.clients["track_follower"]
     try:
-        await asyncio.wait_for(client.request_reply("/cancel", Empty()), 0.5)
-    except asyncio.exceptions.TimeoutError:
+        await client.request_reply("/cancel", Empty()), 0.5
+    except AioRpcError:
         return {"success": False, "message": "Failed to call /cancel"}
 
     return {"success": True, "message": "Stopping track following"}
