@@ -12,6 +12,7 @@ from fastapi import APIRouter
 
 from google.protobuf.json_format import ParseDict
 from google.protobuf.empty_pb2 import Empty
+from fastapi import Request
 
 from pathlib import Path
 
@@ -19,17 +20,14 @@ from backend.config import *
 
 router = APIRouter()
 
-recording_active = False
-
-
 @router.post("/record/{track_name}")
-async def start_recording(track_name: str, background_tasks: BackgroundTasks):
+async def start_recording(request: Request, track_name: str, background_tasks: BackgroundTasks):
     """Starts recording a track using the filter service client."""
-    global recording_active
+    recording_active = request.state["vars"]["track_recording"]
     if recording_active:
-        raise HTTPException(status_code=400, detail="Recording is already in progress.")
+        return {"error": "recording is already active"}
 
-    recording_active = True  # Set recording flag to true
+    request.state["vars"]["track_recording"] = True  # Set recording flag to true
     output_dir = Path(TRACKS_DIR)
 
     service_config_path = Path(SERVICE_CONFIG_PATH)
@@ -44,12 +42,11 @@ async def start_recording(track_name: str, background_tasks: BackgroundTasks):
     return {"message": f"Recording started for track '{track_name}'."}
 
 
-async def record_track(
+async def record_track(request: Request,
     service_config_path: Path, track_name: str, output_dir: Path
 ) -> None:
     """Runs the filter service client to record a track."""
-    global recording_active
-    recording_active = True  # Ensure we mark recording as active
+    request.state["vars"]["track_recording"] = True
 
     # Ensure output directory exists
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -73,13 +70,8 @@ async def record_track(
     ParseDict(filter_config_dict, config)
 
     # Clear the track before recording
-    try:
-        print(f"Sending /clear_track request to {config.host}:{config.port}")
-        await asyncio.wait_for(
-            EventClient(config).request_reply("/clear_track", Empty()), timeout=5
-        )
-    except asyncio.TimeoutError:
-        print("⚠ Timeout: No response from /clear_track. Continuing recording.")
+    print(f"Sending /clear_track request to {config.host}:{config.port}")
+    await EventClient(config).request_reply("/clear_track", Empty())
 
     # Create a Track message
     track = Track()
@@ -88,7 +80,7 @@ async def record_track(
     async for event, message in EventClient(config).subscribe(
         config.subscriptions[0], decode=True
     ):
-        if not recording_active:
+        if not request.state["vars"]["track_recording"]:
             print("Recording stopped.")
             break  # Stop recording loop
 
@@ -108,11 +100,11 @@ async def record_track(
 
 ###stop###
 @router.post("/stop_recording")
-async def stop_recording():
+async def stop_recording(request: Request):
     """Stops the recording process."""
-    global recording_active
+    recording_active = request.state["vars"]["track_recording"]
     if not recording_active:
         return {"message": "No recording in progress."}
 
-    recording_active = False  # Stop the recording process
+    request.state["vars"]["track_recording"] = False  # Stop the recording process
     return {"message": "Recording stopped successfully."}

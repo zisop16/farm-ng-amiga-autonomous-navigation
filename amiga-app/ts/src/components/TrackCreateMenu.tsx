@@ -4,14 +4,14 @@ import React, { useState } from "react";
 interface TrackCreateProps {
     selectTrack: (trackName: string) => void,
     tracks: Array<string>,
-    forceTracksUpdate: () => void
+    trackBeingCreated: boolean,
+    setTrackBeingCreated: (setting: boolean) => void
 };
 
 export default function TrackCreateMenu(props: TrackCreateProps) {
     const [newTrackName, setNewTrackName] = useState("");
     // This variable will store the error message associated with creating a given track
     const [trackCreationError, setTrackCreationError] = useState("");
-    const [currentlyCreating, setCurrentlyCreating] = useState(false)
 
     /*
     The add new track button should not add tracks directly into local storage;
@@ -36,7 +36,7 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
 	    }
 
 	    setTrackCreationError("");
-	    setCurrentlyCreating(true);
+	    props.setTrackBeingCreated(true);
 
 	    // API call to start recording the track
         const recording = `${import.meta.env.VITE_API_URL}/record/${trimmed}`;
@@ -44,11 +44,10 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
 	    .then(response => response.json())
 	    .then(data => {
 		    console.log(data.message);
-            props.forceTracksUpdate();
 	    })
 	    .catch(error => {
 		console.error("Error starting track recording:", error);
-		    setCurrentlyCreating(false); // Ensure state is reverted on failure
+		    props.setTrackBeingCreated(false); // Ensure state is reverted on failure
 	    });
 	}
 
@@ -61,18 +60,10 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                 "Content-Type": "application/json"
             }
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error("Failed to stop recording");
-            }
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
             console.log(data.message);
-            setCurrentlyCreating(false);
-        })
-        .catch(error => {
-            console.error("Error stopping recording:", error);
+            props.setTrackBeingCreated(false);
         });
     }
 
@@ -92,19 +83,19 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                         value={newTrackName}
                         onChange={(e) => setNewTrackName(e.target.value)}
                         placeholder="Enter new track name"
-                        disabled={currentlyCreating}
+                        disabled={props.trackBeingCreated}
                         error={trackCreationError !== ""}
                         helperText={trackCreationError}
                         style={{ width: "250px"}}
                     />
                 </Grid2>
                 <Grid2 size={12}>
-                    <Button variant="contained" disabled={currentlyCreating} onClick={createTrack} style={{ whiteSpace: "nowrap", minWidth: "120px" }}>
+                    <Button variant="contained" disabled={props.trackBeingCreated} onClick={createTrack} style={{ whiteSpace: "nowrap", minWidth: "120px" }}>
                         Start Track Creation
                     </Button>
                 </Grid2>
                 <Grid2 size={12}>
-                    <Button variant="contained" disabled={!currentlyCreating} onClick={endTrackCreation} style={{ whiteSpace: "nowrap", minWidth: "120px" }}>
+                    <Button variant="contained" disabled={!props.trackBeingCreated} onClick={endTrackCreation} style={{ whiteSpace: "nowrap", minWidth: "120px" }}>
                         End Track
                     </Button>
                 </Grid2>

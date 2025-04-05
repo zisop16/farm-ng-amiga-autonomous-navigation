@@ -51,10 +51,8 @@ async def follower_state(request: Request):
     event_manager = request.state.event_manager
     client = event_manager.clients["track_follower"]
 
-    json_response = json.loads(MessageToJson(await client.request_reply("/get_state", Empty())))
+    state: TrackFollowerState = await client.request_reply("/get_state", Empty(), decode=True)
     
-    payload_bytes = base64.b64decode(json_response["payload"])
-    state  = TrackFollowerState.FromString(payload_bytes)
     controllable = state.status.robot_status.controllable
     
     return {"controllable": controllable}

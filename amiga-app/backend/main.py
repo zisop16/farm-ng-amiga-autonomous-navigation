@@ -28,6 +28,7 @@ import uvicorn
 from farm_ng.core.event_client_manager import EventClientSubscriptionManager
 from farm_ng.core.event_service_pb2 import EventServiceConfigList
 from farm_ng.core.events_file_reader import proto_from_json_file
+from farm_ng_core_pybind import Pose3F64
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,7 +46,6 @@ from cameraBackend.oakManager import startCameras
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global event_manager
     print("Initializing App...")
 
     # config with all the configs
@@ -70,7 +70,18 @@ async def lifespan(app: FastAPI):
 
     yield {
         "event_manager": event_manager,
-        "oak_manager": oak_manager
+        "oak_manager": oak_manager,
+        # Yield dict cannot be changed directly, but objects inside it can
+        # So we use a vars item for all our non constant variables
+        "vars": {
+            "line_recording": False,
+            "track_recording": False,
+            "active_line": list[Pose3F64],
+            "turn_calibrating": False,
+            "turn_calibration_start": Pose3F64,
+            "turn_calibration_segments": int,
+            "turn_length": float
+        }
     } 
 
     print("Shutting down...")
