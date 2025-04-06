@@ -93,7 +93,7 @@ async def filter_data(
     
     Args:
         websocket (WebSocket): the websocket connection
-        every_n (int, optional): the frequency to receive events. Defaults to 1.
+        every_n (int, optional): the frequency to receive events.
     
     Usage:
         ws = new WebSocket(`${API_URL}/filter_data`)

@@ -34,6 +34,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from pydantic import BaseModel
 
 from multiprocessing import Process, Queue
 
@@ -73,15 +74,7 @@ async def lifespan(app: FastAPI):
         "oak_manager": oak_manager,
         # Yield dict cannot be changed directly, but objects inside it can
         # So we use a vars item for all our non constant variables
-        "vars": {
-            "line_recording": False,
-            "track_recording": False,
-            "active_line": list[Pose3F64],
-            "turn_calibrating": False,
-            "turn_calibration_start": Pose3F64,
-            "turn_calibration_segments": int,
-            "turn_length": float
-        }
+        "vars": StateVars()
     } 
 
     print("Shutting down...")
