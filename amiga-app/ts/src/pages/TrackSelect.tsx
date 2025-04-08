@@ -1,7 +1,7 @@
 import { Button, Collapse, Container, Grid2, LinearProgress, Stack, Tab, Tabs, Typography } from "@mui/material";
 import BackButton from "../components/BackButton";
 import CameraFeed from "../components/CameraFeed";
-import React, { useEffect, useState } from "react";
+import React, { SyntheticEvent, useEffect, useState } from "react";
 import TrackSelectMenu from "../components/TrackSelectMenu";
 import TrackCreateMenu from "../components/TrackCreateMenu";
 import { JsonView } from "react-json-view-lite";
@@ -19,9 +19,6 @@ export default function TrackSelect() {
     const editTracks = (newTracks: Array<string>) => setExistingTracks(newTracks);
     const forceTracksUpdate = () => setTracksUpdate(true);
 
-<<<<<<< HEAD
-    function fetchTracks() {
-=======
     // Whether or not the track creation page is currently creating a track
     // If we are currently creating a track, and the user swaps to a different menu
     // We must send a request to the backend to end track creation
@@ -51,18 +48,12 @@ export default function TrackSelect() {
 
     function fetchTracks() {
         if (!tracksUpdate) {return;}
->>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
         const trackListEndpoint = `${import.meta.env.VITE_API_URL}/list_tracks`;
         fetch(trackListEndpoint, { method: "GET" })
         .then((response) => response.json())
         .then((result) => {
-<<<<<<< HEAD
-            console.log(`hi ${result}`);
-            setExistingTracks(result["tracks"]);
-=======
             const trackArr = result["tracks"];
             setExistingTracks(trackArr);
->>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
         })
         .catch((err) => console.log(err));
         setTracksUpdate(false);

@@ -18,11 +18,6 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
     We have to make a call to backend API for the farmer to guide robot and create it, then it is added to backend and fetched
     */
 
-<<<<<<< HEAD
-    function getTrackErrorMessage() {
-   	    return duplicateTrackError ? `Track name "${duplicateTrackError}" already exists.` : "";
-    }
-=======
     function createTrack() {
 	    const trimmed = newTrackName.trim();
 	    
@@ -55,44 +50,6 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
 		    props.setTrackBeingCreated(false); // Ensure state is reverted on failure
 	    });
 	}
->>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
-
-    function createTrack() {
-	    const trimmed = newTrackName.trim();
-	    
-	    if (!trimmed) {
-		setDuplicateTrackError("Track name cannot be empty.");
-		return;
-	    }
-
-	    const toParse = localStorage.getItem("trackNames");
-	    const trackNames = toParse ? JSON.parse(toParse) : [];
-
-	    if (trackNames.includes(trimmed)) {
-		setDuplicateTrackError(trimmed);
-		return;
-	    }
-
-	    setDuplicateTrackError("");
-	    setCurrentlyCreating(true);
-
-	    // API call to start recording the track
-        const recording = `${import.meta.env.VITE_API_URL}/record/${encodeURIComponent(trimmed)}`;
-	    fetch(recording, {
-		method: "POST",
-		headers: {
-		    "Content-Type": "application/json",
-		},
-	    })
-	    .then(response => response.json())
-	    .then(data => {
-		console.log(data.message);
-	    })
-	    .catch(error => {
-		console.error("Error starting track recording:", error);
-		setCurrentlyCreating(false); // Ensure state is reverted on failure
-	    });
-	}
 
     function endTrackCreation() {
         // Make an API call to stop creating track object
@@ -103,25 +60,10 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                 "Content-Type": "application/json"
             }
         })
-<<<<<<< HEAD
-        .then(response => {
-            if (!response.ok) {
-                throw new Error("Failed to stop recording");
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log(data.message);
-            setCurrentlyCreating(false);
-        })
-        .catch(error => {
-            console.error("Error stopping recording:", error);
-=======
         .then(response => response.json())
         .then(data => {
             console.log(data.message);
             props.setTrackBeingCreated(false);
->>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
         });
     }
 
