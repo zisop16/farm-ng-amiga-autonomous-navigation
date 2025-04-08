@@ -1,38 +1,78 @@
 import { Button, Collapse, Container, Grid2, LinearProgress, Stack, Tab, Tabs, Typography } from "@mui/material";
 import BackButton from "../components/BackButton";
 import CameraFeed from "../components/CameraFeed";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import TrackSelectMenu from "../components/TrackSelectMenu";
 import TrackCreateMenu from "../components/TrackCreateMenu";
 import { JsonView } from "react-json-view-lite";
 import TrackRunMenu from "../components/TrackRunMenu";
 
 export default function TrackSelect() {
-    const [tabValue, setTabValue] = React.useState(1);
-    const [currentCamera, setCurrentCamera] = React.useState("center");
-    const [selectedTrack, setSelectedTrack] = React.useState("");
-    const [selectedButton, changeSelectedButton] = React.useState("select");
-    const [existingTracks, setExistingTracks] = React.useState([""]);
+    const [tabValue, setTabValue] = useState(1);
+    const [currentCamera, setCurrentCamera] = useState("center");
+    const [selectedTrack, setSelectedTrack] = useState("");
+    const [selectedButton, setSelectedButton] = useState("select");
+    const [existingTracks, setExistingTracks] = useState([""]);
+    const [tracksUpdate, setTracksUpdate] = useState(true);
 
     const selectTrack = (tName: string) => setSelectedTrack(tName);
     const editTracks = (newTracks: Array<string>) => setExistingTracks(newTracks);
+    const forceTracksUpdate = () => setTracksUpdate(true);
+
+<<<<<<< HEAD
+    function fetchTracks() {
+=======
+    // Whether or not the track creation page is currently creating a track
+    // If we are currently creating a track, and the user swaps to a different menu
+    // We must send a request to the backend to end track creation
+    const [trackBeingCreated, setTrackBeingCreated] = useState(false);
+    const changeTrackBeingCreated = (flag: boolean) => setTrackBeingCreated(flag);
+    function selectButton(newButton: string): void {
+        if (selectedButton === "add") {
+            forceTracksUpdate();
+            if (trackBeingCreated) {
+                // Make an API call to stop creating track object
+                const stopping = `${import.meta.env.VITE_API_URL}/stop_recording`;
+                fetch(stopping , {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                })
+                .then((response) => response.json())
+                .then(data => {
+                    console.log(data.message);
+                    setTrackBeingCreated(false);
+                });
+            }
+        }
+        setSelectedButton(newButton);
+    }
 
     function fetchTracks() {
+        if (!tracksUpdate) {return;}
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
         const trackListEndpoint = `${import.meta.env.VITE_API_URL}/list_tracks`;
         fetch(trackListEndpoint, { method: "GET" })
         .then((response) => response.json())
         .then((result) => {
+<<<<<<< HEAD
             console.log(`hi ${result}`);
             setExistingTracks(result["tracks"]);
+=======
+            const trackArr = result["tracks"];
+            setExistingTracks(trackArr);
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
         })
         .catch((err) => console.log(err));
+        setTracksUpdate(false);
     }
-    useEffect(fetchTracks, []);
+    useEffect(fetchTracks, [tracksUpdate]);
 
     function getMenuComponent() {
         switch(selectedButton) {
             case "add":
-                return <TrackCreateMenu setTrack={selectTrack} />;
+                return <TrackCreateMenu trackBeingCreated={trackBeingCreated} setTrackBeingCreated={changeTrackBeingCreated} selectTrack={selectTrack} tracks={existingTracks}/>;
             case "select":
                 return (
                     <TrackSelectMenu 
@@ -50,10 +90,22 @@ export default function TrackSelect() {
     }
     
 
-    const handleCameraTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    const handleCameraTabChange = (event: SyntheticEvent, newValue: number) => {
         setTabValue(newValue);
         setCurrentCamera(event.currentTarget.id);
     };
+
+    const testPointCloud = () => {
+        const align = `${import.meta.env.VITE_API_URL}/pointcloud/align`;
+        fetch(align, { method: "GET" })
+        .then((response) => console.log(response.json()))
+        .catch((err) => console.log(err));
+
+    const save = `${import.meta.env.VITE_API_URL}/pointcloud/save`;
+        fetch(save, { method: "GET" })
+        .then((response) => console.log(response.json()))
+        .catch((err) => console.log(err));
+    }
 
     const buttonStyle = {
         width: "150px",
@@ -87,13 +139,13 @@ export default function TrackSelect() {
 
                 <Grid2 size={5.4}>
                         <Container style={{display:"flex", justifyContent:"space-between", padding:"0px"}}>
-                            <Button variant="contained" style={buttonStyle} onClick={() => changeSelectedButton("add")} color={selectedButton==="add" ? "secondary" : "primary"}>
+                            <Button variant="contained" style={buttonStyle} onClick={() => setSelectedButton("add")} color={selectedButton==="add" ? "secondary" : "primary"}>
                                 <Typography variant="h5">Add New Track</Typography>
                             </Button>
-                            <Button variant="contained" style={buttonStyle} onClick={() => changeSelectedButton("select")} color={selectedButton==="select" ? "secondary" : "primary"}>
+                            <Button variant="contained" style={buttonStyle} onClick={() => setSelectedButton("select")} color={selectedButton==="select" ? "secondary" : "primary"}>
                                 <Typography variant="h5" >Select Track</Typography>
                             </Button>
-                            <Button variant="contained" style={buttonStyle} onClick={() => changeSelectedButton("run")} color={selectedButton==="run" ? "secondary" : "primary"}>
+                            <Button variant="contained" disabled={selectedTrack===""} style={buttonStyle} onClick={() => setSelectedButton("run")} color={selectedButton==="run" ? "secondary" : "primary"}>
                                 <Typography variant="h5">Run Track</Typography>
                             </Button>
 
@@ -115,8 +167,10 @@ export default function TrackSelect() {
                     </Typography>
                 </Grid2>
 
+            {/*<Button variant="contained" style={buttonStyle} onClick={() => testPointCloud()}>
+                test
+            </Button>*/}
             </Grid2>
         </>
     );
 }
-

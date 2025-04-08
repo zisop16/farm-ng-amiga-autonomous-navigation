@@ -50,3 +50,4 @@ dist-ssr
 
 # Generated
 src/generated
+.env

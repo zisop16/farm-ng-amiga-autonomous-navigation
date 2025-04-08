@@ -20,11 +20,20 @@ export default function TrackRunMenu(props: TrackRunProps) {
     const [startPosition, setStartPosition] = useState(Vec2.Zero);
     const [rotationAngle, updateRotationAngle] = useState(0);
     const [endPosition, setEndPosition] = useState(Vec2.Zero);
+<<<<<<< HEAD
+=======
+    const [followingTrack, setFollowingTrack] = useState(false);
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
 
     useEffect(() => {
         // go to ws:// instead of http://
         const socket_URL = `ws://${import.meta.env.VITE_API_URL.substring(7)}/filter_data`;
+<<<<<<< HEAD
         const detailSocket = new WebSocket(socket_URL);
+=======
+        console.log(socket_URL);
+        const detailSocket = new WebSocket(socket_URL, 'echo-protocol');
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
 
         detailSocket.onopen = (event) => {
             console.log('Detail WebSocket connection opened:', event);
@@ -44,6 +53,13 @@ export default function TrackRunMenu(props: TrackRunProps) {
             // console.log(zAxisRotation);
         }
 
+<<<<<<< HEAD
+=======
+        detailSocket.onerror = (error) => {
+            console.log(error);
+        };
+
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
         detailSocket.onclose = (event) => {
             console.log('Detail WebSocket connection closed:', event);
         };
@@ -86,8 +102,21 @@ export default function TrackRunMenu(props: TrackRunProps) {
     }
 
     function getRemainingDistance() {
+<<<<<<< HEAD
         const diff: Vec2 = endPosition.Sub(currentLocation);
         return diff.Mag();
+=======
+        let msg = "Remaining Distance:";
+        let dist = 0;
+        let followerStateEndpoint = `${import.meta.env.VITE_API_URL}/follow/state`;
+        fetch(followerStateEndpoint, {method: "GET"})
+        .then((response) => response.json())
+        .then(result => {
+            console.log(result["controllable"]);
+        });
+
+        return msg;
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
     }
 
     // Returns the angle in radians between the robot's current rotation
@@ -99,7 +128,10 @@ export default function TrackRunMenu(props: TrackRunProps) {
         const currentAngleVec = FromPolar(1, rotationAngle);
         const currAngle = currentAngleVec.Argument() * 180 / Math.PI;
         const targetAngle = targetAngleVec.Argument() * 180 / Math.PI;
+<<<<<<< HEAD
         console.log(currAngle, targetAngle);
+=======
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
         // Rotate the negative of (target - curr + 90) because rotate() will go clockwise in JS
         return (-targetAngle + currAngle) - 90;
     }
@@ -109,9 +141,15 @@ function followTrack() {
     fetch(followTrackEndpoint, {method: "POST",})
     .then((response) => response.json())
     .then((result) => {
+<<<<<<< HEAD
         console.log("Full response from follow track:", result);
         if (result.success) {
             console.log("Following track:", result.message);
+=======
+        if (result.success) {
+            console.log("Following track:", result.message);
+            setFollowingTrack(true);
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
         } else {
             console.error("Failed to follow track:", result.message);
         }
@@ -137,14 +175,21 @@ function pauseTrack() {
         .then((result) => {
             if (result.success) {
                 console.log("Paused track:", result.message);
+<<<<<<< HEAD
                 alert(`Paused track following`);
             } else {
                 console.error("Failed to pause track:", result.message);
                 alert(`Failed to pause track: ${result.message}`);
+=======
+                setFollowingTrack(false);
+            } else {
+                console.error("Failed to pause track:", result.message);
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
             }
         })
         .catch((err) => {
             console.error("Error pausing track:", err);
+<<<<<<< HEAD
             alert("Error pausing track");
         });
 }
@@ -173,6 +218,11 @@ function resumeTrack() {
         });
 }
 ////
+=======
+        });
+}
+
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
 
 useEffect(fetchStartingPoint, [props.selectedTrack]);
 useEffect(fetchEndingPoint, [props.selectedTrack]);
@@ -200,7 +250,11 @@ return (
                     <Typography variant="h4" style={{height: "100px"}}>{twoDigits(getDist())}<br></br>meters</Typography>
                 </Item>
                 <Item>
+<<<<<<< HEAD
                     <Typography variant="h6">Remaining Distance: {twoDigits(getRemainingDistance())}</Typography>
+=======
+                    <Typography variant="h6">{getRemainingDistance()}</Typography>
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
                 </Item>
             </Stack>
             </Grid2>
@@ -228,11 +282,16 @@ return (
                 <Button
                     variant="contained"
                     color="primary"
+<<<<<<< HEAD
+=======
+                    disabled={!followingTrack}
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
                     onClick={pauseTrack}
                     style={{ margin: "10px", width: "200px", height: "50px" }}
                 >
                     Pause Track
                 </Button>
+<<<<<<< HEAD
                 <Button
                     variant="contained"
                     color="primary"
@@ -241,6 +300,8 @@ return (
                 >
                     Resume Track
                 </Button>
+=======
+>>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
             </Grid2>
         </Grid2>
     </Box>
