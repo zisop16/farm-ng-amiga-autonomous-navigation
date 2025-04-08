@@ -8,8 +8,14 @@ interface TrackCreateProps {
     setTrackBeingCreated: (setting: boolean) => void
 };
 
+enum TrackType {
+    line,
+    standard
+};
+
 export default function TrackCreateMenu(props: TrackCreateProps) {
     const [newTrackName, setNewTrackName] = useState("");
+    const [trackType, setTrackType] = useState(TrackType.line);
     // This variable will store the error message associated with creating a given track
     const [trackCreationError, setTrackCreationError] = useState("");
 
@@ -39,22 +45,28 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
 	    props.setTrackBeingCreated(true);
 
 	    // API call to start recording the track
-        const recording = `${import.meta.env.VITE_API_URL}/record/${trimmed}`;
-	    fetch(recording, { method: "POST",})
+        let record_url;
+        if (trackType == TrackType.line) {
+            record_url = `${import.meta.env.VITE_API_URL}/line/record/${trimmed}`;
+        } else {
+            record_url = `${import.meta.env.VITE_API_URL}/record/${trimmed}`;
+        }
+	    fetch(record_url, { method: "POST",})
 	    .then(response => response.json())
 	    .then(data => {
 		    console.log(data.message);
-	    })
-	    .catch(error => {
-		console.error("Error starting track recording:", error);
-		    props.setTrackBeingCreated(false); // Ensure state is reverted on failure
 	    });
 	}
 
     function endTrackCreation() {
         // Make an API call to stop creating track object
-        const stopping = `${import.meta.env.VITE_API_URL}/stop_recording`;
-        fetch(stopping , {
+        let stop_url;
+        if (trackType == TrackType.line) {
+            stop_url = `${import.meta.env.VITE_API_URL}/line/record/stop`;
+        } else {
+            stop_url = `${import.meta.env.VITE_API_URL}/record/stop`;
+        }
+        fetch(stop_url , {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"

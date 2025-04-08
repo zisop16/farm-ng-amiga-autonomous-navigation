@@ -28,7 +28,7 @@ import base64
 
 router = APIRouter()
 
-@router.post("/follow/{track_name}")
+@router.post("/follow/start/{track_name}")
 async def follow_track(request: Request, track_name: str):
     """Instructs the robot to follow an existing recorded track."""
     event_manager = request.state.event_manager

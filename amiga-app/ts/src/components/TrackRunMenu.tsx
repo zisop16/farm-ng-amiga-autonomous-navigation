@@ -90,7 +90,7 @@ export default function TrackRunMenu(props: TrackRunProps) {
     }
 ///follow//
 function followTrack() {
-    const followTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/${props.selectedTrack}`;
+    const followTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/start/${props.selectedTrack}`;
     fetch(followTrackEndpoint, {method: "POST",})
     .then((response) => response.json())
     .then((result) => {

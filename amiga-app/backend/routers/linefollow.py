@@ -46,7 +46,7 @@ async def get_pose(filter_client: EventClient) -> Pose3F64:
     return Pose3F64.from_proto(state.pose)
 
 
-@router.post("/line/record/{track_name}")
+@router.post("/line/record/start/{track_name}")
 async def start_recording(request: Request, track_name: str, background_tasks: BackgroundTasks):
     """Starts recording a track using the filter service client."""
     vars: StateVars = request.state.vars
