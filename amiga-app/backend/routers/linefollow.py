@@ -212,12 +212,12 @@ def walk_towards(current_pose: Pose3F64, target_position: np.array) -> list[Pose
     current_angle = 2 * np.acos(quaternion.real)
     z_component = quaternion.imag[2]
     if z_component < 0:
-        current_angle = 2 * np.pi - current_angle
+        current_angle = -current_angle
     diff = target_position - current_position
     distance = np.linalg.norm(diff)
     target_angle = np.acos(diff[0] / distance)
     if diff[1] < 0:
-        target_angle = 2 * np.pi - target_angle
+        target_angle = -target_angle
     angle_diff = target_angle - current_angle
 
     turn = create_turn_segment(current_pose, angle_diff)
@@ -229,11 +229,11 @@ def walk_towards(current_pose: Pose3F64, target_position: np.array) -> list[Pose
 def create_straight_segment(
     previous_pose: Pose3F64, distance: float, spacing: float = 0.1
 ) -> list[Pose3F64]:
-    """Compute a straight segment of a square.
+    """Compute a straight line segment
 
     Args:
         previous_pose (Pose3F64): The previous pose.
-        distance (float): The side length of the square, in meters.
+        distance (float): The length of the line, in meters.
         spacing (float): The spacing between waypoints, in meters.
 
     Returns:
@@ -278,6 +278,13 @@ def create_turn_segment(
     Returns:
         list[Pose3F64]: The poses of the turn segment.
     """
+    # Normalize the angle within 0->2pi
+    angle = angle % (2*np.pi)
+    # Don't rotate 270deg when we can rotate -90deg
+    if angle > np.pi:
+        angle = 2*np.pi - angle
+    if angle < -np.pi:
+        angle = 2*np.pi + angle
     # Create a container to store the track segment waypoints
     segment_poses: list[Pose3F64]
 

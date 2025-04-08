@@ -18,6 +18,8 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
     const [trackType, setTrackType] = useState(TrackType.line);
     // This variable will store the error message associated with creating a given track
     const [trackCreationError, setTrackCreationError] = useState("");
+    const [calibratingTurn, setCalibratingTurn] = useState(false);
+    const [lineCreated, setLineCreated] = useState(false);
 
     /*
     The add new track button should not add tracks directly into local storage;
@@ -42,7 +44,6 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
 	    }
 
 	    setTrackCreationError("");
-	    props.setTrackBeingCreated(true);
 
 	    // API call to start recording the track
         let record_url;
@@ -54,7 +55,7 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
 	    fetch(record_url, { method: "POST",})
 	    .then(response => response.json())
 	    .then(data => {
-		    console.log(data.message);
+            props.setTrackBeingCreated(true);
 	    });
 	}
 
@@ -86,32 +87,132 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
         boxShadow: 24,
     };
 
+    function getTrackTypeButtonText() {
+        switch (trackType) {
+            case TrackType.line: {
+                return "Line";
+            }
+            case TrackType.standard: {
+                return "Standard";
+            }      
+        }
+    }
+
+    function swapTrackType() {
+        switch(trackType) {
+            case TrackType.line: {
+                setTrackType(TrackType.standard);
+                return;
+            }
+            case TrackType.standard: {
+                setTrackType(TrackType.line);
+                return;
+            }
+        }
+    }
+
+    let buttonStyle = { 
+        fontSize: "17px", 
+        whiteSpace: "nowrap", 
+        width: "200px", 
+        height:"50px" 
+    }
+
+    function lineTrackButtons() {
+        function calibrateTurn() {
+            const START_URL = `${import.meta.env.VITE_API_URL}/line/calibrate_turn/start`;
+            fetch(START_URL , {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                setCalibratingTurn(true);
+            });
+        }
+        function addTurnSegment() {
+            const SEGMENT_URL = `${import.meta.env.VITE_API_URL}/line/calibrate_turn/segment`;
+            fetch(SEGMENT_URL , {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            });
+        }
+        function endCalibration() {
+            const END_URL = `${import.meta.env.VITE_API_URL}/line/calibrate_turn/end`;
+            fetch(END_URL , {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                setCalibratingTurn(false);
+            });
+        }
+
+        function getLeftButton() {
+            return !calibratingTurn ?
+            <Button variant="contained" style={buttonStyle} disabled={!lineCreated} onClick={calibrateTurn}> Calibrate Turn </Button> :
+            <Button variant="contained" style={buttonStyle} onClick={addTurnSegment}> Add Turn Segment </Button>
+        }
+        return (<>
+        <Grid2 size={6}>
+            {getLeftButton()}
+        </Grid2>
+        <Grid2 size={6}>
+            <Button variant="contained" style={buttonStyle} disabled={!lineCreated}> End Calibration </Button>
+        </Grid2>
+        </>);
+    }
+
+    
     return (
         <Box sx={boxStyle}>
-            <Grid2 container rowSpacing={2} style={{display: "flex", alignItems: "center", gap: "10px"}}>
-                <Grid2 size={12}>
+            <Grid2 container rowSpacing={2} spacing={3} style={{display: "flex", alignItems: "center"}}>
+                <Grid2 size={4}>
+                    <Typography variant="h5">
+                        Track Type:
+                    </Typography>
+                </Grid2>
+                <Grid2 size={8}>
+                    <Button variant="contained" onClick={swapTrackType} style={buttonStyle}>
+                        { getTrackTypeButtonText() }
+                    </Button>
+                </Grid2>
+                <Grid2 size={4}>
+                    <Typography variant="h5">
+                        Track Name:
+                    </Typography>
+                </Grid2>
+                <Grid2 size={8}>
                     <TextField
-                        label="Track Name: "
                         value={newTrackName}
                         onChange={(e) => setNewTrackName(e.target.value)}
-                        placeholder="Enter new track name"
+                        placeholder="Name of your track"
                         disabled={props.trackBeingCreated}
                         error={trackCreationError !== ""}
                         helperText={trackCreationError}
                         style={{ width: "250px"}}
                     />
                 </Grid2>
-                <Grid2 size={12}>
-                    <Button variant="contained" disabled={props.trackBeingCreated} onClick={createTrack} style={{ whiteSpace: "nowrap", minWidth: "120px" }}>
-                        Start Track Creation
+                <Grid2 size={6}>
+                    <Button variant="contained" disabled={props.trackBeingCreated} onClick={createTrack} style={buttonStyle}>
+                        Create Track
                     </Button>
                 </Grid2>
-                <Grid2 size={12}>
-                    <Button variant="contained" disabled={!props.trackBeingCreated} onClick={endTrackCreation} style={{ whiteSpace: "nowrap", minWidth: "120px" }}>
+                <Grid2 size={6}>
+                    <Button variant="contained" disabled={!props.trackBeingCreated} onClick={endTrackCreation} style={buttonStyle}>
                         End Track
                     </Button>
                 </Grid2>
+                { (trackType === TrackType.line) ? lineTrackButtons() : <></>}
             </Grid2>
+            
         </Box>
     );
 }
