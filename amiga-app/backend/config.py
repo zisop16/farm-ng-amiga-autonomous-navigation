@@ -20,7 +20,7 @@ class StateVars(BaseModel):
     turn_calibration_segments: int = 0,
     turn_calibrated: bool = False,
     turn_length: float = 0,
-    following_line: bool = False
+    following_track: bool = False
 
 # Path to the GPS logging script
 SERVICE_CONFIG_PATH =  "./service_config.json"

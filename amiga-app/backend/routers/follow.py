@@ -58,7 +58,7 @@ async def follower_state(request: Request):
     return {"controllable": controllable}
 
 
-@router.post("/pause_following/")
+@router.post("/follow/pause")
 async def pause_following(request: Request):
     """Instructs the robot to pause track following."""
     event_manager = request.state.event_manager
@@ -72,7 +72,7 @@ async def pause_following(request: Request):
     return {"message": "Pausing track following"}
 
 
-@router.post("/stop_following")
+@router.post("/follow/stop")
 async def stop_following(request: Request):
     """Instructs the robot to stop track following."""
     event_manager = request.state.event_manager

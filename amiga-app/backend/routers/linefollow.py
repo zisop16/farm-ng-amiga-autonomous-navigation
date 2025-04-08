@@ -4,7 +4,11 @@ import json
 from farm_ng.core.event_client_manager import EventClient
 from farm_ng.core.events_file_writer import proto_to_json_file
 from farm_ng.core.event_service_pb2 import EventServiceConfig
-from farm_ng.track.track_pb2 import Track
+from farm_ng.track.track_pb2 import (
+    Track,
+    TrackFollowRequest,
+    TrackFollowerState
+)
 from farm_ng.filter.filter_pb2 import FilterState
 from farm_ng_core_pybind import Isometry3F64
 from farm_ng_core_pybind import Pose3F64
@@ -124,9 +128,9 @@ class LineFollowData(BaseModel):
     num_rows: int
     first_turn_right: bool
 @router.post("/line/follow/{line_name}")
-async def follow_line(request: Request, line_name: str):
+async def follow_line(request: Request, line_name: str, data: LineFollowData):
     vars: StateVars = request.state["vars"]
-    if (vars.following_line):
+    if (vars.following_track):
         return {"error": "Line is currently being followed"}
     
     
@@ -137,89 +141,89 @@ async def follow_line(request: Request, line_name: str):
 
     with open(line_path, 'r') as line_file:
         line_data = json.loads(line_file.read())
-    line_start = line_data["start"]
-    line_end = line_data["end"]
+    line_start = np.array(line_data["start"])
+    line_end = np.array(line_data["end"])
     turn_length = line_data["turn_length"]
 
-    if vars.following_line:
+    if vars.following_track:
         return {"error": "Line is currently being followed"}
-
-
-    from_waypoint_0 = Pose3F64(
-        a_from_b=Isometry3F64(line_start, Rotation3F64.Rz(0))^-1
-    )
 
     remaining_rows = data.num_rows
     event_manager = request.state.event_manager
     filter_client = event_manager.clients["filter"]
 
     current_pose = await get_pose(filter_client)
-    total_path: list[Pose3F64] = walk_towards(current_pose, line_start)
-    world_pose_robot = await get_pose(filter_client)
-    world_pose_goal0 = Pose3F64(
-        a_from_b=Isometry3F64(
-            world_pose_robot.translation,
-            vars.active_line[0].rotation
-        ), 
-        frame_a="robot",
-        frame_b="goal0"
-    )
-    total_path.append(world_pose_goal0)
+    total_path: list[Pose3F64] = [current_pose].extend(walk_towards(current_pose, line_start))
+    def _current_pose():
+        return total_path[-1]
 
-    while remaining_rows >= 3:
-        total_path.extend(build_two_turns(vars, data.first_turn_right))
-        remaining_rows -= 2
+    walking_forward = True
+    
+    line_delta = line_end - line_start
+    while remaining_rows > 0:
+        current_position = np.array(_current_pose().translation)
+        delta = line_delta if walking_forward else -line_delta
+        target_position = current_position + delta
+        total_path.extend(walk_towards(_current_pose(), target_position))
+        # If this was the last row, we should not prepare for the next turn
+        if remaining_rows == 1:
+            break
+        current_position = np.array(_current_pose().translation)
+        # This vector faces a 90 degree counterclockwise rotation of line_delta
+        forward_right_direction = np.array([current_position[1], -current_position[0]])
+        forward_right_direction = forward_right_direction / np.linalg.norm(forward_right_direction)
+        # The vector direction of each turn is always the same, because the robot is always moving towards either the right or left side of the field
+        turn_direction = forward_right_direction if data.first_turn_right else -forward_right_direction
+        turn_vector = turn_direction * turn_length
+        target_position = current_position + turn_vector
+        total_path.extend(walk_towards(_current_pose(), target_position))
+        
+        walking_forward = not walking_forward
+        remaining_rows -= 1
 
-def walk_towards(current_pose: Pose3F64, position: list[float]) -> list[Pose3F64]:
+    track_client = event_manager.clients["track_follower"]
+    line_track: Track = format_track(total_path)
+    await track_client.request_reply("/set_track", TrackFollowRequest(track=line_track))
+    await track_client.request_reply("/start", Empty())
+
+    return {"msg": "Line follow started"}
+
+
+def format_track(track_waypoints: list[Pose3F64]) -> Track:
+    """Pack the track waypoints into a Track proto message.
+
+    Args:
+        track_waypoints (list[Pose3F64]): The track waypoints.
+    """
+    return Track(waypoints=[pose.to_proto() for pose in track_waypoints])
+
+def walk_towards(current_pose: Pose3F64, target_position: np.array) -> list[Pose3F64]:
     """_summary_
     Given the robot's current pose, outputs the list of poses the robot must use in their track to walk towards the target position
     Args:
         current_pose (Pose3F64): Current position / rotation of robot
-        position (list[float]): Target position
+        position (np.array): Target position
 
     Returns:
         list[Pose3F64]
     """
     current_position = np.array(current_pose.translation)
-    target_position = np.array(position)
-    current_rotation = current_pose.rotation
+    quaternion = current_pose.rotation.unit_quaternion
+    current_angle = 2 * np.acos(quaternion.real)
+    z_component = quaternion.imag[2]
+    if z_component < 0:
+        current_angle = 2 * np.pi - current_angle
     diff = target_position - current_position
     distance = np.linalg.norm(diff)
-    current_angle = 
-    
+    target_angle = np.acos(diff[0] / distance)
+    if diff[1] < 0:
+        target_angle = 2 * np.pi - target_angle
+    angle_diff = target_angle - current_angle
 
-
-async def build_two_turns(vars: StateVars, turn_right: bool) -> list[Pose3F64]:
-    """Build a square track, from the current pose of the robot.
-
-    Args:
-        clients (dict[str, EventClient]): A dictionary of EventClients.
-        side_length (float): The side length of the square, in meters.
-        clockwise (bool): True will drive the square clockwise (right hand turns).
-                        False is counter-clockwise (left hand turns).
-    Returns:
-        Track: The track for the track_follower to follow.
-    """
-
-    # Create a container to store the track waypoints
-    track_waypoints: list[Pose3F64] = []
-
-    # Set the angle of the turns, based on indicated direction
-    angle: float = -np.pi/2 if turn_right else np.pi/2
-
-    # Drive forward 1 meter (first side of the square)
-    track_waypoints.extend(create_line_segment(track_waypoints[-1], "goal1", vars.active_line))
-
-    # Turn 90 degrees (first turn)
-    track_waypoints.extend(create_turn_segment(track_waypoints[-1], "goal2", angle))
-
-    # Add second line and turn
-    track_waypoints.extend(create_line_segment(track_waypoints[-1], "goal3", vars.active_line))
-    track_waypoints.extend(create_turn_segment(track_waypoints[-1], "goal4", angle))
-
-    # Return the list of waypoints as a Track proto message
-    return track_waypoints
-
+    turn = create_turn_segment(current_pose, angle_diff)
+    if turn != []:
+        current_pose = turn[-1]
+    return turn.extend(create_straight_segment(current_pose, distance))
 
 
 def create_straight_segment(
