@@ -22,6 +22,9 @@ class StateVars(BaseModel):
     turn_length: float = 0,
     following_track: bool = False
 
+    class Config:
+        arbitrary_types_allowed=True
+
 # Path to the GPS logging script
 SERVICE_CONFIG_PATH =  "./service_config.json"
 

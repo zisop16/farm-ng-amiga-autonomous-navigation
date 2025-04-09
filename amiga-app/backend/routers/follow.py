@@ -28,6 +28,7 @@ import base64
 
 router = APIRouter()
 
+
 @router.post("/follow/start/{track_name}")
 async def follow_track(request: Request, track_name: str):
     """Instructs the robot to follow an existing recorded track."""
@@ -70,6 +71,8 @@ async def pause_following(request: Request):
         return {"error": "Not currently following a track"}
 
     return {"message": "Pausing track following"}
+
+#Resume
 
 
 @router.post("/follow/stop")
