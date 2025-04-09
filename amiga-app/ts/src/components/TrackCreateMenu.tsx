@@ -1,6 +1,11 @@
 import { LinearProgress, Typography, TextField, Button, Grid2, Box } from "@mui/material";
 import React, { useState } from "react";
 
+export enum TrackType {
+    line,
+    standard
+};
+
 interface TrackCreateProps {
     selectTrack: (trackName: string) => void,
     tracks: Array<string>,
@@ -8,14 +13,9 @@ interface TrackCreateProps {
     setTrackBeingCreated: (setting: boolean) => void
 };
 
-enum TrackType {
-    line,
-    standard
-};
-
 export default function TrackCreateMenu(props: TrackCreateProps) {
     const [newTrackName, setNewTrackName] = useState("");
-    const [trackType, setTrackType] = useState(TrackType.line);
+    const [trackType, setTrackType] = useState(TrackType.standard);
     // This variable will store the error message associated with creating a given track
     const [trackCreationError, setTrackCreationError] = useState("");
     const [calibratingTurn, setCalibratingTurn] = useState(false);
@@ -48,9 +48,9 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
 	    // API call to start recording the track
         let record_url;
         if (trackType == TrackType.line) {
-            record_url = `${import.meta.env.VITE_API_URL}/line/record/${trimmed}`;
+            record_url = `${import.meta.env.VITE_API_URL}/line/record/start/${trimmed}`;
         } else {
-            record_url = `${import.meta.env.VITE_API_URL}/record/${trimmed}`;
+            record_url = `${import.meta.env.VITE_API_URL}/record/start/${trimmed}`;
         }
 	    fetch(record_url, { method: "POST",})
 	    .then(response => response.json())
@@ -76,7 +76,12 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
         .then(response => response.json())
         .then(data => {
             console.log(data.message);
-            props.setTrackBeingCreated(false);
+            if (trackType == TrackType.standard) {
+                props.setTrackBeingCreated(false);
+            } else {
+                setLineCreated(true);
+            }
+            
         });
     }
 
@@ -165,7 +170,7 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
             {getLeftButton()}
         </Grid2>
         <Grid2 size={6}>
-            <Button variant="contained" style={buttonStyle} disabled={!lineCreated}> End Calibration </Button>
+            <Button variant="contained" style={buttonStyle} onClick={endCalibration} disabled={!lineCreated}> End Calibration </Button>
         </Grid2>
         </>);
     }
@@ -206,7 +211,7 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                     </Button>
                 </Grid2>
                 <Grid2 size={6}>
-                    <Button variant="contained" disabled={!props.trackBeingCreated} onClick={endTrackCreation} style={buttonStyle}>
+                    <Button variant="contained" disabled={!props.trackBeingCreated || lineCreated} onClick={endTrackCreation} style={buttonStyle}>
                         End Track
                     </Button>
                 </Grid2>

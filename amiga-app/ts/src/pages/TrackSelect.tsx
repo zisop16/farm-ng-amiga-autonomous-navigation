@@ -3,7 +3,7 @@ import BackButton from "../components/BackButton";
 import CameraFeed from "../components/CameraFeed";
 import React, { SyntheticEvent, useEffect, useState } from "react";
 import TrackSelectMenu from "../components/TrackSelectMenu";
-import TrackCreateMenu from "../components/TrackCreateMenu";
+import TrackCreateMenu, {TrackType} from "../components/TrackCreateMenu";
 import { JsonView } from "react-json-view-lite";
 import TrackRunMenu from "../components/TrackRunMenu";
 
@@ -13,6 +13,7 @@ export default function TrackSelect() {
     const [selectedTrack, setSelectedTrack] = useState("");
     const [selectedButton, setSelectedButton] = useState("select");
     const [existingTracks, setExistingTracks] = useState([""]);
+    const [existingLines, setExistingLines] = useState([""]);
     const [tracksUpdate, setTracksUpdate] = useState(true);
 
     const selectTrack = (tName: string) => setSelectedTrack(tName);
@@ -29,8 +30,9 @@ export default function TrackSelect() {
             forceTracksUpdate();
             if (trackBeingCreated) {
                 // Make an API call to stop creating track object
-                const stopping = `${import.meta.env.VITE_API_URL}/stop_recording`;
-                fetch(stopping , {
+                const STOP_TRACK = `${import.meta.env.VITE_API_URL}/stop_recording`;
+                const STOP_LINE = `${import.meta.env.VITE_API_URL}/line/end_creation`;
+                fetch(STOP_TRACK , {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json"
@@ -41,6 +43,7 @@ export default function TrackSelect() {
                     console.log(data.message);
                     setTrackBeingCreated(false);
                 });
+                fetch(STOP_LINE, {method: "POST"});
             }
         }
         setSelectedButton(newButton);
@@ -70,6 +73,7 @@ export default function TrackSelect() {
                         selectedTrack={selectedTrack} 
                         selectTrack={selectTrack} 
                         tracks={existingTracks} 
+                        lines={existingLines}
                         editTracks={editTracks}
                     />
                 );

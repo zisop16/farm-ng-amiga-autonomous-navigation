@@ -10,16 +10,16 @@ from farm_ng_core_pybind import Rotation3F64
 import numpy as np
 
 class StateVars(BaseModel):
-    track_recording: bool = False,
+    track_recording: bool = False
     # Name of the line being recorded, so it can be accessed
-    line_recording: str = None,
-    line_start: list[float] = None,
-    line_end: list[float] = None,
-    turn_calibrating: bool = False,
-    turn_calibration_start: Pose3F64 = None,
-    turn_calibration_segments: int = 0,
-    turn_calibrated: bool = False,
-    turn_length: float = 0,
+    line_recording: str = None
+    # 2 dimensional vectors
+    line_start: np.ndarray = None
+    line_end: np.ndarray = None
+    turn_calibrating: bool = False
+    turn_calibration_start: Pose3F64 = None
+    turn_calibration_segments: int = 0
+    turn_length: float = 0
     following_track: bool = False
 
     class Config:

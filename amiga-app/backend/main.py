@@ -40,7 +40,7 @@ from multiprocessing import Process, Queue
 
 from config import *
 
-from routers import tracks, record, follow
+from routers import tracks, record, follow, linefollow
 
 from cameraBackend.oakManager import startCameras
 
@@ -64,8 +64,13 @@ async def lifespan(app: FastAPI):
     event_manager = EventClientSubscriptionManager(config_list=service_config_list)
 
     queue = Queue()
-    oak_manager = Process(target=startCameras, args=(queue,))
-    oak_manager.start()
+
+    no_cameras = True
+    if no_cameras:
+        oak_manager = None
+    else:
+        oak_manager = Process(target=startCameras, args=(queue,))
+        oak_manager.start()
     
     asyncio.create_task(event_manager.update_subscriptions())
 
@@ -93,6 +98,7 @@ app.add_middleware(
 app.include_router(tracks.router)
 app.include_router(record.router)
 app.include_router(follow.router)
+app.include_router(linefollow.router)
 
 if __name__ == "__main__":
 

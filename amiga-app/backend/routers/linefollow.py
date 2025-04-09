@@ -47,41 +47,48 @@ async def get_pose(filter_client: EventClient) -> Pose3F64:
 
 
 @router.post("/line/record/start/{track_name}")
-async def start_recording(request: Request, track_name: str, background_tasks: BackgroundTasks):
+async def start_recording(request: Request, track_name: str):
     """Starts recording a track using the filter service client."""
     vars: StateVars = request.state.vars
     if vars.line_recording is not None:
-        raise HTTPException(status_code=400, detail="Recording is already in progress.")
+        return {"error": "Line recording already in progress"}
 
-    vars.line_recording = track_name  # Set recording flag to true
-    
+    vars.line_recording = track_name
+    print(track_name)
+
     client = request.state.event_manager.clients["filter"]
-    vars.line_start = (await get_pose(client)).translation
+    vars.line_start = np.array((await get_pose(client)).translation[:2])
+    print(f"Line started at: {vars.line_start}")
 
     return {"message": f"Recording started for track '{track_name}'."}
 
-
+@router.post("/line/end_creation")
+async def end_creation(request: Request):
+    vars: StateVars = request.state.vars
+    vars.line_recording = None
+    vars.turn_calibrating = False
 
 
 ###stop###
 @router.post("/line/record/stop")
 async def stop_recording(request: Request):
     """Stops the recording process."""
-    vars: StateVars = request.state["vars"]
+    
+    vars: StateVars = request.state.vars
     if not vars.line_recording:
-        return {"message": "No recording in progress."}
+        return {"error": "No recording in progress."}
 
-    vars.line_recording = None  # Stop the recording process
     client = request.state.event_manager.clients["filter"]
-    vars.line_end = (await get_pose(client)).translation
+    vars.line_end = np.array((await get_pose(client)).translation[:2])
+    print(f"Line ended at: {vars.line_end}")
     return {"message": "Recording stopped successfully."}
 
 @router.post("/line/calibrate_turn/start")
 async def calibrate_turn(request: Request):
-    vars: StateVars = request.state["vars"]
+    vars: StateVars = request.state.vars
     if vars.turn_calibrating:
         return {"error": "Turn calibration is already active"}
-    filter_client = request.state["event_manager"].clients["filter"]
+    filter_client = request.state.event_manager.clients["filter"]
     vars.turn_calibration_start = await get_pose(filter_client)
     vars.turn_calibration_segments = 1
     vars.turn_calibrating = True
@@ -89,31 +96,31 @@ async def calibrate_turn(request: Request):
 
 @router.post("/line/calibrate_turn/segment")
 async def add_turn_segment(request: Request):
-    vars: StateVars = request.state["vars"]
+    vars: StateVars = request.state.vars
     if not vars.turn_calibrating:
         return {"error": "Turn calibration is not active."}
     vars.turn_calibration_segments += 1
 
 @router.post("/line/calibrate_turn/end")
 async def end_turn_calibration(request: Request):
-    vars: StateVars = request.state["vars"]
+    vars: StateVars = request.state.vars
     if not vars.turn_calibrating:
         return {"error": "Turn calibration is not active"}
-    filter_client = request.state["event_manager"].clients["filter"]
+    filter_client = request.state.event_manager.clients["filter"]
     vars.turn_calibrating = False
     num_segments = vars.turn_calibration_segments
-    start_position = vars.turn_calibration_start.translation
-    end_position = (await get_pose(filter_client)).translation
-    turn_diff = np.array(end_position) - np.array(start_position)
-    line_diff = np.array(vars.line_end) - np.array(vars.line_start)
+    start_position = np.array(vars.turn_calibration_start.translation[:2])
+    end_position = np.array((await get_pose(filter_client)).translation[:2])
+    turn_diff = end_position - start_position
+    line_diff = vars.line_end - vars.line_start
     line_direction = line_diff / np.linalg.norm(line_diff)
     left_turn_direction = np.array((-line_direction[1], line_direction[0]))
     turn_length = np.abs((turn_diff / num_segments).dot(left_turn_direction))
     vars.turn_length = turn_length
 
     line_data = {
-        "start": vars.line_start,
-        "end": vars.line_end,
+        "start": start_position.tolist(),
+        "end": end_position.tolist(),
         "turn_length": turn_length
     }
     json_text = json.dumps(line_data)
@@ -122,6 +129,8 @@ async def end_turn_calibration(request: Request):
     with open(json_path, 'w') as line_file:
         line_file.write(json_text)
 
+    vars.line_recording = None
+
     return {"message": "Turn calibration complete."}
 
 class LineFollowData(BaseModel):
@@ -129,7 +138,7 @@ class LineFollowData(BaseModel):
     first_turn_right: bool
 @router.post("/line/follow/{line_name}")
 async def follow_line(request: Request, line_name: str, data: LineFollowData):
-    vars: StateVars = request.state["vars"]
+    vars: StateVars = request.state.vars
     if (vars.following_track):
         return {"error": "Line is currently being followed"}
     

@@ -12,7 +12,6 @@ router = APIRouter()
 @router.get("/list_tracks")
 async def list_tracks():
     """Lists all JSON track files in the `TRACKS_DIR` directory."""
-    print("hi")
     if not os.path.exists(TRACKS_DIR):
         return {"error": "No tracks directory found."}
 

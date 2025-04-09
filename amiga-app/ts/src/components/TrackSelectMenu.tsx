@@ -1,6 +1,6 @@
 // src/components/TrackSelectMenu.tsx
 
-import { Box, IconButton, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
+import { Box, Button, IconButton, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
@@ -10,6 +10,7 @@ interface TrackSelectProps {
     selectedTrack: string,
     selectTrack: (tName: string) => void,
     tracks: Array<string>,
+    lines: Array<string>,
     editTracks: (newTracks: Array<string>) => void,
 }
 
@@ -75,9 +76,12 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     const iconStyle = { fontSize: 45 };
     const boxStyle = { bgcolor: "#cce7eb", p: 4, margin: "20px 0 0 0", boxShadow: 24 };
 
+
     return (
         <Box sx={boxStyle}>
             <Typography variant="h4">Available Tracks:</Typography>
+            <Typography variant="h5">Track Type: </Typography>
+            <Button variant="contained">hi</Button>
             <List>
                 {props.tracks.map(tName => (
                     <ListItem
