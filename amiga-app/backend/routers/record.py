@@ -25,7 +25,7 @@ router = APIRouter()
 @router.post("/record/{track_name}")
 async def start_recording(request: Request, track_name: str, background_tasks: BackgroundTasks):
     """Starts recording a track using the filter service client."""
-    vars: StateVars = request.state["vars"]
+    vars: StateVars = request.state.vars
     recording_active = vars.track_recording
     if recording_active:
         return {"error": "recording is already active"}
@@ -41,7 +41,7 @@ async def start_recording(request: Request, track_name: str, background_tasks: B
 
 async def record_track(request: Request, track_name: str, output_dir: Path) -> None:
     """Runs the filter service client to record a track."""
-    vars: StateVars = request.state["vars"]
+    vars: StateVars = request.state.vars
     vars.track_recording = True
 
     # Ensure output directory exists
@@ -73,10 +73,10 @@ async def record_track(request: Request, track_name: str, output_dir: Path) -> N
 
 
 ###stop###
-@router.post("/stop_recording")
+@router.post("/record/stop")
 async def stop_recording(request: Request):
     """Stops the recording process."""
-    vars: StateVars = request.state["vars"]
+    vars: StateVars = request.state.vars
     recording_active = vars.track_recording
     if not recording_active:
         return {"message": "No recording in progress."}
