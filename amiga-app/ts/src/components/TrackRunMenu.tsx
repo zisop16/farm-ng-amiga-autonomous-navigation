@@ -3,9 +3,11 @@ import { styled } from '@mui/material/styles';
 import React, { useEffect, useState } from "react";
 import { Vec2, FromPolar, twoDigits } from "../utils/Vec2";
 import arrow from "../icons/direction-arrow.png"
+import { TrackType } from "./TrackCreateMenu";
 
 interface TrackRunProps {
-    selectedTrack: string
+    selectedTrack: string,
+    selectedType: TrackType
 };
 
 export default function TrackRunMenu(props: TrackRunProps) {
@@ -19,8 +21,8 @@ export default function TrackRunMenu(props: TrackRunProps) {
     const [currentLocation, setCurrentLocation] = useState(Vec2.Zero);
     const [startPosition, setStartPosition] = useState(Vec2.Zero);
     const [rotationAngle, updateRotationAngle] = useState(0);
-    const [endPosition, setEndPosition] = useState(Vec2.Zero);
     const [followingTrack, setFollowingTrack] = useState(false);
+    const [trackLoaded, setTrackLoaded] = useState(false);
 
     useEffect(() => {
         // go to ws:// instead of http://
@@ -88,28 +90,38 @@ export default function TrackRunMenu(props: TrackRunProps) {
         // Rotate the negative of (target - curr + 90) because rotate() will go clockwise in JS
         return (-targetAngle + currAngle) - 90;
     }
-///follow//
+
 function followTrack() {
-    const followTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/start/${props.selectedTrack}`;
-    fetch(followTrackEndpoint, {method: "POST",})
+    let followTrackEndpoint;
+    let requestData;
+    if (props.selectedType === TrackType.standard) {
+        followTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/start/${props.selectedTrack}`;
+        requestData = {method: "POST"};
+    }  else {
+        followTrackEndpoint = `${import.meta.env.VITE_API_URL}/line/follow/start/${props.selectedTrack}`;
+        requestData = {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                "num_rows": 5,
+                "first_turn_right": false
+            })
+        };
+    }
+    fetch(followTrackEndpoint, requestData)
     .then((response) => response.json())
     .then((result) => {
         if (result.success) {
             console.log("Following track:", result.message);
             setFollowingTrack(true);
         } else {
-            console.error("Failed to follow track:", result.message);
+            console.error("Failed to follow track:", result.error);
         }
-    })
-    .catch((err) => {
-        console.error("Error following track:", err);
     });
 }
 
-
-
-////
-//pause//
 function pauseTrack() {
     const pauseTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/pause`;
     fetch(pauseTrackEndpoint, {
@@ -124,7 +136,7 @@ function pauseTrack() {
                 console.log("Paused track:", result.message);
                 setFollowingTrack(false);
             } else {
-                console.error("Failed to pause track:", result.message);
+                console.error("Failed to pause track:", result.error);
             }
         })
         .catch((err) => {
@@ -136,42 +148,40 @@ function resumeTrack() {
     const resumeTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/resume`;
     fetch(resumeTrackEndpoint, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        }
     })
         .then((response) => response.json())
-        .then((result) => {
-            if (result.success) {
-                console.log("Resumed track:", result.message);
-                alert(`Resumed track following`);
-            } else {
-                console.error("Failed to resume track:", result.message);
-                alert(`Failed to resume track: ${result.message}`);
-            }
-        })
-        .catch((err) => {
-            console.error("Error resuming track:", err);
-            alert("Error resuming track");
+        .then((_result) => {
+            setFollowingTrack(true);
         });
+}
+
+function endTrack() {
+    const endTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/stop`;
+    fetch(endTrackEndpoint, {method: "POST"})
+    .then((response) => response.json())
+    .then((_result) => {
+        setFollowingTrack(false);
+    });
 }
 
 
 useEffect(fetchStartingPoint, [props.selectedTrack]);
 // useEffect(fetchEndingPoint, [props.selectedTrack]);
 
-const Item = styled(Paper)(({ theme }) => ({
-    backgroundColor: '#fff',
-    ...theme.typography.body2,
-    padding: theme.spacing(1),
-    textAlign: 'center',
-    color: theme.palette.text.secondary,
-    ...theme.applyStyles('dark', {
-      backgroundColor: '#1A2027',
-    }),
-  }));
+    const Item = styled(Paper)(({ theme }) => ({
+        backgroundColor: '#fff',
+        ...theme.typography.body2,
+        padding: theme.spacing(1),
+        textAlign: 'center',
+        color: theme.palette.text.secondary,
+        ...theme.applyStyles('dark', {
+        backgroundColor: '#1A2027',
+        }),
+    }));
 
-return (
+    const buttonStyle = { margin: "10px", width: "200px", height: "50px" }
+
+    return (
     <Box sx={boxStyle}>
         <Grid2 container rowSpacing={2} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
             <Grid2 size={6}>
@@ -200,30 +210,30 @@ return (
                 <Button
                     variant="contained"
                     color="primary"
-                    onClick={followTrack}
-                    style={{ margin: "10px", width: "200px", height: "50px" }}
+                    onClick={!trackLoaded ? followTrack : resumeTrack}
+                    style={buttonStyle}
                 >
-                    Follow Track
+                    {!trackLoaded ? "Follow Track" : "Resume Track"}
                 </Button>
                 <Button
                     variant="contained"
                     color="primary"
-                    disabled={!followingTrack}
-                    onClick={pauseTrack}
-                    style={{ margin: "10px", width: "200px", height: "50px" }}
+                    onClick={followingTrack ? pauseTrack : resumeTrack}
+                    style={buttonStyle}
                 >
-                    Pause Track
+                    {followingTrack ? "Pause Track" : "Resume Track"}
                 </Button>
                 <Button
                     variant="contained"
                     color="primary"
-                    onClick={resumeTrack}
-                    style={{ margin: "10px", width: "200px", height: "50px" }}
+                    disabled={!trackLoaded}
+                    onClick={endTrack}
+                    style={buttonStyle}
                 >
-                    Resume Track
+                    End Track
                 </Button>
             </Grid2>
         </Grid2>
     </Box>
-);
+    );
 }

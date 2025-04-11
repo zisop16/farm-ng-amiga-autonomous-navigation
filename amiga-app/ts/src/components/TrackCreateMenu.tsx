@@ -54,7 +54,7 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
         }
 	    fetch(record_url, { method: "POST",})
 	    .then(response => response.json())
-	    .then(data => {
+	    .then(_data => {
             props.setTrackBeingCreated(true);
 	    });
 	}
@@ -121,7 +121,7 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
         whiteSpace: "nowrap", 
         width: "200px", 
         height:"50px" 
-    }
+    };
 
     function lineTrackButtons() {
         function calibrateTurn() {
@@ -157,6 +157,8 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
             .then(response => response.json())
             .then(data => {
                 setCalibratingTurn(false);
+                props.setTrackBeingCreated(false);
+                setLineCreated(false);
             });
         }
 

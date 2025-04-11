@@ -1,10 +1,11 @@
 // src/components/TrackSelectMenu.tsx
 
-import { Box, Button, IconButton, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
+import { Box, Button, Grid2, IconButton, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 import React, { useState } from "react";
+import { TrackType } from "./TrackCreateMenu";
 
 interface TrackSelectProps {
     selectedTrack: string,
@@ -12,13 +13,16 @@ interface TrackSelectProps {
     tracks: Array<string>,
     lines: Array<string>,
     editTracks: (newTracks: Array<string>) => void,
-}
+    selectType: (type: TrackType) => void
+};
 
 
 export default function TrackSelectMenu(props: TrackSelectProps) {
     const [editingTrack, setEditingTrack] = useState<string | null>(null);
     const [editedName, setEditedName] = useState<string>("");
     const [duplicateNameError, setDuplicateNameError] = useState("");
+    const [trackType, setTrackType] = useState(TrackType.standard);
+    const [pageNumber, setPageNumber] = useState(0);
 
     function removeTrack(tName: string): void {
         const delete_url = `${import.meta.env.VITE_API_URL}/delete_track/${tName}`;
@@ -76,55 +80,111 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     const iconStyle = { fontSize: 45 };
     const boxStyle = { bgcolor: "#cce7eb", p: 4, margin: "20px 0 0 0", boxShadow: 24 };
 
+    let buttonStyle = { 
+        fontSize: "20px", 
+        whiteSpace: "nowrap", 
+        minWidth: "120px", 
+        height:"40px" 
+    };
+
+    function getTrackTypeText() {
+        switch(trackType) {
+            case TrackType.standard:
+                return "Standard";
+            case TrackType.line:
+                return "Line";
+        }
+    }
+
+    function changeTrackType() {
+        switch(trackType) {
+            case TrackType.standard:
+                setTrackType(TrackType.line);
+                break;
+            case TrackType.line:
+                setTrackType(TrackType.standard);
+                break;
+        }
+    }
+
+    function getCurrentTrackList() {
+        let toDisplay: Array<string>;
+        let maxDisplayedTracks = 6;
+        switch (trackType) {
+            case TrackType.standard:
+                toDisplay = props.tracks;
+                break;
+            case TrackType.line:
+                toDisplay = props.lines;
+                break;
+        }
+        let startInd = maxDisplayedTracks * pageNumber;
+        let endInd = Math.min(toDisplay.length, startInd + maxDisplayedTracks);
+        toDisplay = toDisplay.slice(startInd, endInd);
+
+        return toDisplay.map(tName => (
+            <ListItem
+                key={tName}
+                secondaryAction={
+                    <>
+                        {editingTrack === tName ? (
+                            <IconButton onClick={() => saveTrackName(tName)}>
+                                <CheckIcon sx={iconStyle} />
+                            </IconButton>
+                        ) : (
+                            <IconButton onClick={() => startEditing(tName)}>
+                                <EditIcon sx={iconStyle} />
+                            </IconButton>
+                        )}
+                        <IconButton onClick={() => removeTrack(tName)}>
+                            <DeleteIcon sx={iconStyle} />
+                        </IconButton>
+                    </>
+                }
+                disablePadding
+            >
+                {editingTrack === tName ? (
+                    <TextField
+                        value={editedName}
+                        onChange={(e) => {
+                            setEditedName(e.target.value);
+                            setDuplicateNameError("");
+                        }}
+                        onKeyDown={(e) => e.key === "Enter" && saveTrackName(tName)}
+                        onBlur={() => saveTrackName(tName)}
+                        error={duplicateNameError !== ""}
+                        helperText={duplicateNameError ? `Track name: ${duplicateNameError} already exists.` : ""}
+                        autoFocus
+                        fullWidth
+                    />
+                ) : (
+                    <ListItemButton onClick={() => {
+                        props.selectTrack(tName);
+                        props.selectType(trackType);
+                    }}>
+                        <ListItemText primary={tName} />
+                    </ListItemButton>
+                )}
+            </ListItem>
+        ));
+    }
 
     return (
         <Box sx={boxStyle}>
-            <Typography variant="h4">Available Tracks:</Typography>
-            <Typography variant="h5">Track Type: </Typography>
-            <Button variant="contained">hi</Button>
+            <Grid2 container direction="row" spacing={2} sx={{justifyContent: "center", alignItems: "center"}}>
+                {/*<Grid2 size="grow"></Grid2>*/}
+                <Grid2 size="auto">
+                    <Typography variant="h5">Available</Typography>
+                </Grid2>
+                <Grid2 size="auto">
+                    <Button variant="contained" style={buttonStyle} onClick={changeTrackType}>{getTrackTypeText()}</Button>
+                </Grid2>
+                <Grid2 size="auto">
+                    <Typography variant="h5">Tracks:</Typography>
+                </Grid2>
+            </Grid2>
             <List>
-                {props.tracks.map(tName => (
-                    <ListItem
-                        key={tName}
-                        secondaryAction={
-                            <>
-                                {editingTrack === tName ? (
-                                    <IconButton onClick={() => saveTrackName(tName)}>
-                                        <CheckIcon sx={iconStyle} />
-                                    </IconButton>
-                                ) : (
-                                    <IconButton onClick={() => startEditing(tName)}>
-                                        <EditIcon sx={iconStyle} />
-                                    </IconButton>
-                                )}
-                                <IconButton onClick={() => removeTrack(tName)}>
-                                    <DeleteIcon sx={iconStyle} />
-                                </IconButton>
-                            </>
-                        }
-                        disablePadding
-                    >
-                        {editingTrack === tName ? (
-                            <TextField
-                                value={editedName}
-                                onChange={(e) => {
-                                    setEditedName(e.target.value);
-                                    setDuplicateNameError("");
-                                }}
-                                onKeyDown={(e) => e.key === "Enter" && saveTrackName(tName)}
-                                onBlur={() => saveTrackName(tName)}
-                                error={duplicateNameError !== ""}
-                                helperText={duplicateNameError ? `Track name: ${duplicateNameError} already exists.` : ""}
-                                autoFocus
-                                fullWidth
-                            />
-                        ) : (
-                            <ListItemButton onClick={() => props.selectTrack(tName)}>
-                                <ListItemText primary={tName} />
-                            </ListItemButton>
-                        )}
-                    </ListItem>
-                ))}
+                {}
             </List>
         </Box>
     );

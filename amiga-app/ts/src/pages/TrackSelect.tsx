@@ -15,10 +15,12 @@ export default function TrackSelect() {
     const [existingTracks, setExistingTracks] = useState([""]);
     const [existingLines, setExistingLines] = useState([""]);
     const [tracksUpdate, setTracksUpdate] = useState(true);
+    const [selectedType, setSelectedType] = useState(TrackType.standard);
 
     const selectTrack = (tName: string) => setSelectedTrack(tName);
     const editTracks = (newTracks: Array<string>) => setExistingTracks(newTracks);
     const forceTracksUpdate = () => setTracksUpdate(true);
+    const selectType = (type: TrackType) => setSelectedType(type);
 
     // Whether or not the track creation page is currently creating a track
     // If we are currently creating a track, and the user swaps to a different menu
@@ -52,13 +54,19 @@ export default function TrackSelect() {
     function fetchTracks() {
         if (!tracksUpdate) {return;}
         const trackListEndpoint = `${import.meta.env.VITE_API_URL}/list_tracks`;
+        const lineListEndpoint = `${import.meta.env.VITE_API_URL}/line/list`;
         fetch(trackListEndpoint, { method: "GET" })
         .then((response) => response.json())
         .then((result) => {
             const trackArr = result["tracks"];
             setExistingTracks(trackArr);
-        })
-        .catch((err) => console.log(err));
+        });
+        fetch(lineListEndpoint, {method: "GET"})
+        .then((response) => response.json())
+        .then((result) => {
+            const lineArr = result["lines"];
+            setExistingLines(lineArr);
+        });
         setTracksUpdate(false);
     }
     useEffect(fetchTracks, [tracksUpdate]);
@@ -71,14 +79,15 @@ export default function TrackSelect() {
                 return (
                     <TrackSelectMenu 
                         selectedTrack={selectedTrack} 
-                        selectTrack={selectTrack} 
+                        selectTrack={selectTrack}
+                        selectType={selectType}
                         tracks={existingTracks} 
                         lines={existingLines}
                         editTracks={editTracks}
                     />
                 );
             case "run":
-                return (<TrackRunMenu selectedTrack={selectedTrack}></TrackRunMenu>);
+                return (<TrackRunMenu selectedType={selectedType} selectedTrack={selectedTrack}></TrackRunMenu>);
             default:
                 return (<></>);
         }

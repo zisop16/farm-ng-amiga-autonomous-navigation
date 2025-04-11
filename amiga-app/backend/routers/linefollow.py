@@ -45,6 +45,14 @@ async def get_pose(filter_client: EventClient) -> Pose3F64:
     state: FilterState = await filter_client.request_reply("/get_state", Empty(), decode=True)
     return Pose3F64.from_proto(state.pose)
 
+@router.get("/line/list")
+async def list_lines(request: Request):
+    if not os.path.exists(LINES_DIR):
+        return {"error": "No tracks directory found."}
+
+    line_names = [f[:-5] for f in os.listdir(LINES_DIR) if f.endswith(".json")]
+
+    return {"lines": line_names}
 
 @router.post("/line/record/start/{track_name}")
 async def start_recording(request: Request, track_name: str):
