@@ -22,7 +22,7 @@ from backend.config import *
 
 router = APIRouter()
 
-@router.post("/record/{track_name}")
+@router.post("/record/start/{track_name}")
 async def start_recording(request: Request, track_name: str, background_tasks: BackgroundTasks):
     """Starts recording a track using the filter service client."""
     vars: StateVars = request.state.vars

@@ -1,6 +1,6 @@
 // src/components/TrackSelectMenu.tsx
 
-import { Box, Button, Grid2, IconButton, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
+import { Box, Button, Grid2, IconButton, List, ListItem, ListItemButton, ListItemText, Pagination, TextField, Typography } from "@mui/material";
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
@@ -13,7 +13,9 @@ interface TrackSelectProps {
     tracks: Array<string>,
     lines: Array<string>,
     editTracks: (newTracks: Array<string>) => void,
-    selectType: (type: TrackType) => void
+    editLines: (newLines: Array<string>) => void,
+    selectType: (type: TrackType) => void,
+    selectedType: TrackType
 };
 
 
@@ -21,20 +23,31 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     const [editingTrack, setEditingTrack] = useState<string | null>(null);
     const [editedName, setEditedName] = useState<string>("");
     const [duplicateNameError, setDuplicateNameError] = useState("");
-    const [trackType, setTrackType] = useState(TrackType.standard);
-    const [pageNumber, setPageNumber] = useState(0);
+    const [pageNumber, setPageNumber] = useState(1);
+    const [displayedType, setDisplayedType] = useState(props.selectedType);
 
     function removeTrack(tName: string): void {
-        const delete_url = `${import.meta.env.VITE_API_URL}/delete_track/${tName}`;
+        let delete_url: string;
+        if (displayedType === TrackType.standard) {
+            delete_url = `${import.meta.env.VITE_API_URL}/delete_track/${tName}`;
+        } else {
+            delete_url = `${import.meta.env.VITE_API_URL}/line/delete/${tName}`;
+        }
         fetch(delete_url, { method: "POST" })
             .then(response => response.json())
-            .then(data => {
-                console.log(data.message);
-                props.editTracks(props.tracks.filter(track => track !== tName));
-                if (tName === props.selectedTrack) {
-                    props.selectTrack("");
+            .then(_data => {
+                if (displayedType === TrackType.standard) {
+                    props.editTracks(props.tracks.filter(track => track !== tName));
+                    if (tName === props.selectedTrack) {
+                        props.selectTrack("");
+                    }
+                } else {
+                    props.editLines(props.lines.filter(line => line !== tName));
+                    if (tName === props.selectedTrack) {
+                        props.selectTrack("");
+                    }
                 }
-            });
+        });
     }
 
     function startEditing(tName: string): void {
@@ -45,15 +58,27 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
 
     function saveTrackName(oldName: string): void {
         const trimmedName = editedName.trim();
-        if (!trimmedName || (trimmedName !== oldName && props.tracks.includes(trimmedName))) {
+        let tracksArray;
+        if (displayedType === TrackType.standard) {
+            tracksArray = props.tracks;
+        } else {
+            tracksArray = props.lines;
+        }
+        if (!trimmedName || (trimmedName !== oldName && tracksArray.includes(trimmedName))) {
             setDuplicateNameError(trimmedName);
             setEditedName(oldName);
             return;
         }
 
-        const newTrackNames = props.tracks.map(t => t === oldName ? trimmedName : t);
+        const newTrackNames = tracksArray.map(t => t === oldName ? trimmedName : t);
 
-        fetch(`${import.meta.env.VITE_API_URL}/edit_track`, {
+        let editURL;
+        if (displayedType === TrackType.standard) {
+            editURL = `${import.meta.env.VITE_API_URL}/edit_track`
+        } else {
+            editURL = `${import.meta.env.VITE_API_URL}/line/edit`
+        }
+        fetch(editURL, {
             method: "POST",
             body: JSON.stringify({
                 current_name: oldName,
@@ -67,14 +92,18 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
                 if (!response.ok) throw new Error(`Failed to rename track: ${response.statusText}`);
                 return response.json();
             })
-            .then(data => {
-                console.log("Track renamed successfully:", data.message);
-                props.editTracks(newTrackNames);
-                if (props.selectedTrack === oldName) props.selectTrack(trimmedName);
+            .then(_data => {
+                if (displayedType === TrackType.standard) {
+                    props.editTracks(newTrackNames);
+                } else {
+                    props.editLines(newTrackNames);
+                }
+                if (displayedType === props.selectedType && props.selectedTrack === oldName) {
+                    props.selectTrack(trimmedName);
+                }
                 setEditingTrack(null);
                 setDuplicateNameError("");
-            })
-            .catch(error => console.error("Error renaming track:", error));
+            });
     }
 
     const iconStyle = { fontSize: 45 };
@@ -88,7 +117,7 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     };
 
     function getTrackTypeText() {
-        switch(trackType) {
+        switch(displayedType) {
             case TrackType.standard:
                 return "Standard";
             case TrackType.line:
@@ -97,20 +126,27 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     }
 
     function changeTrackType() {
-        switch(trackType) {
+        switch(displayedType) {
             case TrackType.standard:
-                setTrackType(TrackType.line);
+                setDisplayedType(TrackType.line);
                 break;
             case TrackType.line:
-                setTrackType(TrackType.standard);
+                setDisplayedType(TrackType.standard);
                 break;
         }
     }
-
+    const maxDisplayedTracks = 6;
+    function numberOfPages() {
+        if(displayedType === TrackType.standard) {
+            return Math.ceil(props.tracks.length / maxDisplayedTracks);
+        } else {
+            return Math.ceil(props.lines.length / maxDisplayedTracks);
+        }
+    }
     function getCurrentTrackList() {
         let toDisplay: Array<string>;
-        let maxDisplayedTracks = 6;
-        switch (trackType) {
+        
+        switch (displayedType) {
             case TrackType.standard:
                 toDisplay = props.tracks;
                 break;
@@ -118,7 +154,7 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
                 toDisplay = props.lines;
                 break;
         }
-        let startInd = maxDisplayedTracks * pageNumber;
+        let startInd = maxDisplayedTracks * (pageNumber - 1);
         let endInd = Math.min(toDisplay.length, startInd + maxDisplayedTracks);
         toDisplay = toDisplay.slice(startInd, endInd);
 
@@ -160,13 +196,17 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
                 ) : (
                     <ListItemButton onClick={() => {
                         props.selectTrack(tName);
-                        props.selectType(trackType);
+                        props.selectType(displayedType);
                     }}>
                         <ListItemText primary={tName} />
                     </ListItemButton>
                 )}
             </ListItem>
         ));
+    }
+
+    function handlePageChange(event: React.ChangeEvent<unknown>, value: number) {
+        setPageNumber(value);
     }
 
     return (
@@ -182,10 +222,17 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
                 <Grid2 size="auto">
                     <Typography variant="h5">Tracks:</Typography>
                 </Grid2>
-            </Grid2>
+            <Grid2 size={12}>
             <List>
-                {}
+                {getCurrentTrackList()}
             </List>
+            </Grid2>
+            <Grid2 size={12} sx={{justifyContent: "center", alignItems: "center", display: "flex"}}>
+            
+            <Pagination count={numberOfPages()} page={pageNumber} onChange={handlePageChange} color="primary" size="large" />
+            
+            </Grid2>
+            </Grid2>
         </Box>
     );
 }

@@ -22,6 +22,7 @@ from google.protobuf.json_format import MessageToJson
 from farm_ng.core.uri_pb2 import Uri
 
 from backend.config import *
+from backend.robot_utils import walk_towards
 import base64
 
 

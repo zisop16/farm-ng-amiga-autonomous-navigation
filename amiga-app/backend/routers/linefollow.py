@@ -32,6 +32,7 @@ from google.protobuf.empty_pb2 import Empty
 from pathlib import Path
 
 from backend.config import *
+from backend.robot_utils import walk_towards
 
 router = APIRouter()
 
@@ -170,7 +171,11 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData):
     filter_client = event_manager.clients["filter"]
 
     current_pose = await get_pose(filter_client)
-    total_path: list[Pose3F64] = [current_pose].extend(walk_towards(current_pose, line_start))
+    current_pose = current_pose * Pose3F64(a_from_b=Isometry3F64(), frame_a="robot", frame_b="goal0")
+    goal_counter = 1
+    total_path: list[Pose3F64] = [current_pose]
+    total_path.extend(walk_towards(current_pose, line_start, goal_counter))
+    goal_counter += 2
     def _current_pose():
         return total_path[-1]
 
@@ -178,14 +183,15 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData):
     
     line_delta = line_end - line_start
     while remaining_rows > 0:
-        current_position = np.array(_current_pose().translation)
+        current_position = np.array(_current_pose().translation[:2])
         delta = line_delta if walking_forward else -line_delta
         target_position = current_position + delta
-        total_path.extend(walk_towards(_current_pose(), target_position))
+        total_path.extend(walk_towards(_current_pose(), target_position, goal_counter))
+        goal_counter += 2
         # If this was the last row, we should not prepare for the next turn
         if remaining_rows == 1:
             break
-        current_position = np.array(_current_pose().translation)
+        current_position = np.array(_current_pose().translation[:2])
         # This vector faces a 90 degree counterclockwise rotation of line_delta
         forward_right_direction = np.array([current_position[1], -current_position[0]])
         forward_right_direction = forward_right_direction / np.linalg.norm(forward_right_direction)
@@ -193,138 +199,67 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData):
         turn_direction = forward_right_direction if data.first_turn_right else -forward_right_direction
         turn_vector = turn_direction * turn_length
         target_position = current_position + turn_vector
-        total_path.extend(walk_towards(_current_pose(), target_position))
+        total_path.extend(walk_towards(_current_pose(), target_position, goal_counter))
+        goal_counter += 2
         
         walking_forward = not walking_forward
         remaining_rows -= 1
 
     track_client = event_manager.clients["track_follower"]
     line_track: Track = format_track(total_path)
+    proto_to_json_file(f"{TRACKS_DIR}/linetrack.json", line_track)
+
     await track_client.request_reply("/set_track", TrackFollowRequest(track=line_track))
     await track_client.request_reply("/start", Empty())
 
     return {"msg": "Line follow started"}
 
+@router.post("/line/delete/{track_name}")
+async def delete_track(track_name):
+    """Deletes a JSON track file from the  `TRACKS_DIR` directory."""
+    json_path = Path(LINES_DIR) / (track_name + ".json")
+    try:
+        json_path.unlink()
+    except FileNotFoundError:
+        return { "error": f"Track: '{track_name}' does not exist"}
 
-def format_track(track_waypoints: list[Pose3F64]) -> Track:
-    """Pack the track waypoints into a Track proto message.
+    return { "message": f"Track: '{track_name}' deleted" }
 
-    Args:
-        track_waypoints (list[Pose3F64]): The track waypoints.
-    """
-    return Track(waypoints=[pose.to_proto() for pose in track_waypoints])
+# Define Pydantic model for request data
+class Edit(BaseModel):
+    current_name: str
+    new_name: str
+# Only one definition of the endpoint
+@router.post("/line/edit")
+async def edit_line_name(body: Edit):
+    current_name = body.current_name
+    new_name = body.new_name
 
-def walk_towards(current_pose: Pose3F64, target_position: np.array) -> list[Pose3F64]:
-    """_summary_
-    Given the robot's current pose, outputs the list of poses the robot must use in their track to walk towards the target position
-    Args:
-        current_pose (Pose3F64): Current position / rotation of robot
-        position (np.array): Target position
+    line_path = os.path.join(LINES_DIR, f"{current_name}.json")
+    new_line_path = os.path.join(LINES_DIR, f"{new_name}.json")
 
-    Returns:
-        list[Pose3F64]
-    """
-    current_position = np.array(current_pose.translation)
-    quaternion = current_pose.rotation.unit_quaternion
-    current_angle = 2 * np.acos(quaternion.real)
-    z_component = quaternion.imag[2]
-    if z_component < 0:
-        current_angle = -current_angle
-    diff = target_position - current_position
-    distance = np.linalg.norm(diff)
-    target_angle = np.acos(diff[0] / distance)
-    if diff[1] < 0:
-        target_angle = -target_angle
-    angle_diff = target_angle - current_angle
+    # Check if the current track file exists
+    if not os.path.exists(line_path):
+        return { "error": f"Track: '{current_name}' does not exist"}
+    
+    # Check if the new track name already exists
+    if os.path.exists(new_line_path):
+        return { "error": f"Track: '{new_name}' already exists"}
+    
+    os.rename(line_path, new_line_path)
+    return {"message": f"Track: '{current_name}' renamed to: '{new_name}'."}
 
-    turn = create_turn_segment(current_pose, angle_diff)
-    if turn != []:
-        current_pose = turn[-1]
-    return turn.extend(create_straight_segment(current_pose, distance))
+@router.get("/line/get_start/{line_name}")
+async def get_start(line_name: str):
+    """Reads a track JSON file and returns its content."""
+    line_path = os.path.join(LINES_DIR, f"{line_name}.json")
+
+    if not os.path.exists(line_path):
+        return {"error": f"Line '{line_name}' not found."}
+
+    with open(line_path, "r") as json_file:
+        line_data = json.loads(json_file.read())
+    return {"start_position": line_data["start"]}
 
 
-def create_straight_segment(
-    previous_pose: Pose3F64, distance: float, spacing: float = 0.1
-) -> list[Pose3F64]:
-    """Compute a straight line segment
 
-    Args:
-        previous_pose (Pose3F64): The previous pose.
-        distance (float): The length of the line, in meters.
-        spacing (float): The spacing between waypoints, in meters.
-
-    Returns:
-        Pose3F64: The poses of the straight segment.
-    """
-    # Create a container to store the track segment waypoints
-    segment_poses: list[Pose3F64]
-
-    # For tracking the number of segments and remaining angle
-    first_segment = True
-    remaining_distance: float = distance
-
-    while remaining_distance > 0:
-        # Compute the distance of the next segment
-        segment_distance: float = min(remaining_distance, spacing)
-
-        # Compute the next pose
-        straight_segment: Pose3F64 = Pose3F64(
-            a_from_b=Isometry3F64([segment_distance, 0, 0], Rotation3F64.Rz(0)),
-        )
-        if first_segment:
-            segment_poses = [previous_pose * straight_segment]
-            first_segment = False
-        else:
-            segment_poses.append(segment_poses[-1] * straight_segment)
-
-        # Update the remaining angle
-        remaining_distance -= segment_distance
-
-    return segment_poses
-
-def create_turn_segment(
-    previous_pose: Pose3F64, angle: float, spacing: float = 0.1
-) -> list[Pose3F64]:
-    """Compute a turn segment of a square.
-
-    Args:
-        previous_pose (Pose3F64): The previous pose.
-        next_frame_b (str): The name of the child frame of the next pose.
-        angle (float): The angle to turn, in radians (+ left, - right).
-        spacing (float): The spacing between waypoints, in radians.
-    Returns:
-        list[Pose3F64]: The poses of the turn segment.
-    """
-    # Normalize the angle within 0->2pi
-    angle = angle % (2*np.pi)
-    # Don't rotate 270deg when we can rotate -90deg
-    if angle > np.pi:
-        angle = 2*np.pi - angle
-    if angle < -np.pi:
-        angle = 2*np.pi + angle
-    # Create a container to store the track segment waypoints
-    segment_poses: list[Pose3F64]
-
-    # For tracking the number of segments and remaining angle
-    first_segment = True
-    remaining_angle: float = angle
-
-    while abs(remaining_angle) > 0:
-        # Compute the angle of the next segment
-        segment_angle: float = np.copysign(min(np.abs(remaining_angle), spacing), angle)
-
-        # Compute the next pose
-        turn_segment: Pose3F64 = Pose3F64(
-            a_from_b=Isometry3F64.Rz(segment_angle),
-        )
-        if first_segment:
-            segment_poses = [previous_pose * turn_segment]
-            first_segment = False
-        else:
-            segment_poses.append(segment_poses[-1] * turn_segment)
-
-        # Update the counter and remaining angle
-        counter += 1
-        remaining_angle -= segment_angle
-
-    return segment_poses

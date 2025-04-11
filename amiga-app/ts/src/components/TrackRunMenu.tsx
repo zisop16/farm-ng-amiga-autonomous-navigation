@@ -61,20 +61,30 @@ export default function TrackRunMenu(props: TrackRunProps) {
     
 
     function fetchStartingPoint() {
-        const trackDataEndpoint = `${import.meta.env.VITE_API_URL}/get_track/${props.selectedTrack}`;
+        let trackDataEndpoint;
+        if (props.selectedType === TrackType.standard) {
+            trackDataEndpoint = `${import.meta.env.VITE_API_URL}/get_track/${props.selectedTrack}`;
+        } else {
+            trackDataEndpoint = `${import.meta.env.VITE_API_URL}/line/get_start/${props.selectedTrack}`;
+        }
         fetch(trackDataEndpoint, { method: "GET" })
         .then((response) => response.json())
         .then((result) => {
-            const waypoints = result["waypoints"];
-            const first = waypoints[0];
-            const startingPos = first["aFromB"]["translation"]
-            setStartPosition(new Vec2(startingPos.x, startingPos.y));
-        })
-        .catch((err) => console.log(err));
+            if (props.selectedType === TrackType.standard) {
+                const waypoints = result["waypoints"];
+                const first = waypoints[0];
+                const startingPos = first["aFromB"]["translation"]
+                setStartPosition(new Vec2(startingPos.x, startingPos.y));    
+            } else {
+                const start = result["start_position"];
+                setStartPosition(new Vec2(start[0], start[1]));
+            }
+        });
     }
 
     function getDist() {
         const diff: Vec2 = currentLocation.Sub(startPosition);
+        // console.log(currentLocation.toString(), startPosition.toString());
         return diff.Mag();
     }
 
@@ -98,7 +108,7 @@ function followTrack() {
         followTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/start/${props.selectedTrack}`;
         requestData = {method: "POST"};
     }  else {
-        followTrackEndpoint = `${import.meta.env.VITE_API_URL}/line/follow/start/${props.selectedTrack}`;
+        followTrackEndpoint = `${import.meta.env.VITE_API_URL}/line/follow/${props.selectedTrack}`;
         requestData = {
             method: "POST",
             headers: {

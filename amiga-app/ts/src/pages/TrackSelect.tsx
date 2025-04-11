@@ -19,6 +19,7 @@ export default function TrackSelect() {
 
     const selectTrack = (tName: string) => setSelectedTrack(tName);
     const editTracks = (newTracks: Array<string>) => setExistingTracks(newTracks);
+    const editLines = (newLines: Array<string>) => setExistingLines(newLines);
     const forceTracksUpdate = () => setTracksUpdate(true);
     const selectType = (type: TrackType) => setSelectedType(type);
 
@@ -84,6 +85,8 @@ export default function TrackSelect() {
                         tracks={existingTracks} 
                         lines={existingLines}
                         editTracks={editTracks}
+                        editLines={editLines}
+                        selectedType={selectedType}
                     />
                 );
             case "run":
@@ -135,21 +138,26 @@ export default function TrackSelect() {
                             <Tab label={<Typography>Center Camera</Typography>} id="center" />
                             <Tab label={<Typography>Right Camera</Typography>} id="right" />
                         </Tabs>
-                    </div>
-                <CameraFeed orientation={currentCamera} />
-                </Grid2>
+                    </div> 
+                    <CameraFeed orientation={currentCamera} />
+                    <Typography variant="h5">
+                            Current Track: {
+                                selectedTrack === "" ? "None" : selectedTrack
+                            }
+                        </Typography>
+                    </Grid2>
 
                 <Grid2 size={.6} />
 
                 <Grid2 size={5.4}>
                         <Container style={{display:"flex", justifyContent:"space-between", padding:"0px"}}>
-                            <Button variant="contained" style={buttonStyle} onClick={() => setSelectedButton("add")} color={selectedButton==="add" ? "secondary" : "primary"}>
+                            <Button variant="contained" style={buttonStyle} onClick={() => selectButton("add")} color={selectedButton==="add" ? "secondary" : "primary"}>
                                 <Typography variant="h5">Add New Track</Typography>
                             </Button>
-                            <Button variant="contained" style={buttonStyle} onClick={() => setSelectedButton("select")} color={selectedButton==="select" ? "secondary" : "primary"}>
+                            <Button variant="contained" style={buttonStyle} onClick={() => selectButton("select")} color={selectedButton==="select" ? "secondary" : "primary"}>
                                 <Typography variant="h5" >Select Track</Typography>
                             </Button>
-                            <Button variant="contained" disabled={selectedTrack===""} style={buttonStyle} onClick={() => setSelectedButton("run")} color={selectedButton==="run" ? "secondary" : "primary"}>
+                            <Button variant="contained" disabled={selectedTrack===""} style={buttonStyle} onClick={() => selectButton("run")} color={selectedButton==="run" ? "secondary" : "primary"}>
                                 <Typography variant="h5">Run Track</Typography>
                             </Button>
 
@@ -163,13 +171,7 @@ export default function TrackSelect() {
                 <Grid2 size={0} />
 
                 <Grid2 size={4}/>
-                <Grid2 size={12}>
-                    <Typography variant="h5">
-                        Current Track: {
-                            selectedTrack === "" ? "None" : selectedTrack
-                        }
-                    </Typography>
-                </Grid2>
+                
 
             {/*<Button variant="contained" style={buttonStyle} onClick={() => testPointCloud()}>
                 test
