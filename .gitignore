@@ -1,9 +1,3 @@
-<<<<<<< HEAD
-./venv/
-./manifest.json
-./ts/.env
-./__pycache__/
-=======
 amiga-app/venv/
 amiga-app/manifest.json
 __pycache__/
@@ -11,4 +5,3 @@ amiga-app/.cache/
 
 **/__pycache__/
 amiga-app/backend/cameraBackend/.cache/
->>>>>>> 2ffd193a1d4f6da38c883c3d7711c1e2ad66af85
