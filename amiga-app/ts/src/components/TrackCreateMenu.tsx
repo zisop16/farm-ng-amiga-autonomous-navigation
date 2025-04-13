@@ -1,5 +1,7 @@
-import { LinearProgress, Typography, TextField, Button, Grid2, Box } from "@mui/material";
-import React, { useState } from "react";
+import { LinearProgress, Typography, TextField, Button, Grid2, Box, Modal } from "@mui/material";
+import React, { useState, useRef } from "react";
+import Keyboard from "react-simple-keyboard";
+import "react-simple-keyboard/build/css/index.css";
 
 export enum TrackType {
     line,
@@ -21,6 +23,19 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
     const [calibratingTurn, setCalibratingTurn] = useState(false);
     const [lineCreated, setLineCreated] = useState(false);
 
+    // Keyboard
+    const [showKeyboard, setShowKeyboard] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const handleKeyboardInput = (input: string) => {
+        setNewTrackName(input);
+        requestAnimationFrame(() => {
+            if (inputRef.current) {
+                inputRef.current.focus();
+            }
+        });
+    }
+    
     /*
     The add new track button should not add tracks directly into local storage;
     We have to make a call to backend API for the farmer to guide robot and create it, then it is added to backend and fetched
@@ -198,15 +213,31 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                 </Grid2>
                 <Grid2 size={8}>
                     <TextField
+                        inputRef={inputRef}
                         value={newTrackName}
                         onChange={(e) => setNewTrackName(e.target.value)}
+                        onFocus={() => setShowKeyboard(true)}
                         placeholder="Name of your track"
                         disabled={props.trackBeingCreated}
                         error={trackCreationError !== ""}
                         helperText={trackCreationError}
                         style={{ width: "250px"}}
                     />
+                    <Modal open={showKeyboard} BackdropProps={{style: { backgroundColor: "transparent" }}} onClose={() => setShowKeyboard(false)} sx={{
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                        justifyContent: 'center',
+                        border: 'none',
+                        outline: 'none',
+                    }}>
+                        <Keyboard
+                            onChange={(input) => handleKeyboardInput(input)}
+                            inputName={"newTrackName"}
+                        />
+                    </Modal>                
                 </Grid2>
+
+                
                 <Grid2 size={6}>
                     <Button variant="contained" disabled={props.trackBeingCreated} onClick={createTrack} style={buttonStyle}>
                         Create Track
