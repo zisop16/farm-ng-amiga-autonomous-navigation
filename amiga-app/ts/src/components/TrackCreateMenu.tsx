@@ -194,6 +194,7 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
 
     
     return (
+        <>
         <Box sx={boxStyle}>
             <Grid2 container rowSpacing={2} spacing={3} style={{display: "flex", alignItems: "center"}}>
                 <Grid2 size={4}>
@@ -223,18 +224,7 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                         helperText={trackCreationError}
                         style={{ width: "250px"}}
                     />
-                    <Modal open={showKeyboard} BackdropProps={{style: { backgroundColor: "transparent" }}} onClose={() => setShowKeyboard(false)} sx={{
-                        display: 'flex',
-                        alignItems: 'flex-end',
-                        justifyContent: 'center',
-                        border: 'none',
-                        outline: 'none',
-                    }}>
-                        <Keyboard
-                            onChange={(input) => handleKeyboardInput(input)}
-                            inputName={"newTrackName"}
-                        />
-                    </Modal>                
+                                  
                 </Grid2>
 
                 
@@ -250,8 +240,20 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                 </Grid2>
                 { (trackType === TrackType.line) ? lineTrackButtons() : <></>}
             </Grid2>
-            
         </Box>
+        <Modal open={showKeyboard} BackdropProps={{style: { backgroundColor: "transparent" }}} onClose={() => setShowKeyboard(false)} sx={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            border: 'none',
+            outline: 'none',
+        }}>
+            <Keyboard
+                onChange={(input) => handleKeyboardInput(input)}
+                inputName={"newTrackName"}
+            />
+        </Modal>
+        </>
     );
 }
 

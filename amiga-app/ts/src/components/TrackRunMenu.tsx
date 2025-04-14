@@ -1,6 +1,6 @@
 import { LinearProgress, Typography, TextField, Button, Grid2, Box, Stack, Paper } from "@mui/material";
 import { styled } from '@mui/material/styles';
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Vec2, FromPolar, twoDigits } from "../utils/Vec2";
 import arrow from "../icons/direction-arrow.png"
 import { TrackType } from "./TrackCreateMenu";
@@ -20,18 +20,20 @@ export default function TrackRunMenu(props: TrackRunProps) {
 
     const [currentLocation, setCurrentLocation] = useState(Vec2.Zero);
     const [startPosition, setStartPosition] = useState(Vec2.Zero);
-    const [rotationAngle, updateRotationAngle] = useState(0);
+    const [rotationAngle, updateRotationAngle] = useState(1);
     const [followingTrack, setFollowingTrack] = useState(false);
     const [trackLoaded, setTrackLoaded] = useState(false);
+
+    const [numRows, setNumRows] = useState(1);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         // go to ws:// instead of http://
         const socket_URL = `ws://${import.meta.env.VITE_API_URL.substring(7)}/filter_data`;
-        console.log(socket_URL);
         const detailSocket = new WebSocket(socket_URL, 'echo-protocol');
 
         detailSocket.onopen = (event) => {
-            console.log('Detail WebSocket connection opened:', event);
+            // console.log('Detail WebSocket connection opened:', event);
         };
 
         detailSocket.onmessage = (event) => {
@@ -43,17 +45,15 @@ export default function TrackRunMenu(props: TrackRunProps) {
             if (zAxis < 0) {
                 zAxisRotation *= -1;
             }
-            // console.log(`${zAxis}, ${zAxisRotation * 180/Math.PI}`);
             updateRotationAngle(zAxisRotation);
-            // console.log(zAxisRotation);
         }
 
         detailSocket.onerror = (error) => {
             console.log(error);
         };
 
-        detailSocket.onclose = (event) => {
-            console.log('Detail WebSocket connection closed:', event);
+        detailSocket.onclose = (_event) => {
+            // console.log('Detail WebSocket connection closed:', event);
         };
         return () => {detailSocket.close()};
     }, []);
@@ -84,7 +84,6 @@ export default function TrackRunMenu(props: TrackRunProps) {
 
     function getDist() {
         const diff: Vec2 = currentLocation.Sub(startPosition);
-        // console.log(currentLocation.toString(), startPosition.toString());
         return diff.Mag();
     }
 
@@ -115,7 +114,7 @@ function followTrack() {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                "num_rows": 5,
+                "num_rows": 2,
                 "first_turn_right": false
             })
         };
@@ -123,8 +122,8 @@ function followTrack() {
     fetch(followTrackEndpoint, requestData)
     .then((response) => response.json())
     .then((result) => {
-        if (result.success) {
-            console.log("Following track:", result.message);
+        if (!result.error) {
+            setTrackLoaded(true);
             setFollowingTrack(true);
         } else {
             console.error("Failed to follow track:", result.error);
@@ -142,8 +141,7 @@ function pauseTrack() {
     })
         .then((response) => response.json())
         .then((result) => {
-            if (result.success) {
-                console.log("Paused track:", result.message);
+            if (!result.error) {
                 setFollowingTrack(false);
             } else {
                 console.error("Failed to pause track:", result.error);
@@ -171,7 +169,60 @@ function endTrack() {
     .then((response) => response.json())
     .then((_result) => {
         setFollowingTrack(false);
+        setTrackLoaded(false);
     });
+}
+
+function rowsError() {
+    if (!Number.isInteger(numRows)){
+        return true;
+    }
+    return numRows <= 0
+}
+
+function toPosInt(str: string) {  
+    let val = +str;
+    if (Number.isNaN(val)) {
+        return false;
+    }
+    if ((val % 1) != 0) {
+        return false;
+    }
+    if (val < 1) {
+        return false;
+    }
+    return val;
+  }
+
+function lineOptions() {
+    if (props.selectedType != TrackType.line) {
+        return;
+    }
+    return (
+    <Grid2 size={12}>
+        <TextField
+            type="number"
+            inputRef={inputRef}
+            value={numRows}
+            onChange={
+                (event) => {
+                    let val = event.target.value;
+                    let asInt = toPosInt(val);
+                    if (asInt === false) {
+                        setNumRows(numRows);
+                    } else {
+                        setNumRows(asInt);
+                    }
+                }
+            }
+            placeholder="Number of rows"
+            disabled={trackLoaded}
+            error={rowsError()}
+            helperText={rowsError() ? "Number of rows must be a positive integer" : ""}
+            style={{ width: "250px"}}
+        />
+    </Grid2>
+    );
 }
 
 
@@ -216,22 +267,25 @@ useEffect(fetchStartingPoint, [props.selectedTrack]);
                 </Item>
             </Stack>
             </Grid2>
+            {lineOptions()}
             <Grid2 size={12} style={{ justifyContent: "center", display: "flex", marginTop: "20px" }}>
                 <Button
                     variant="contained"
                     color="primary"
-                    onClick={!trackLoaded ? followTrack : resumeTrack}
+                    disabled={trackLoaded && !followingTrack}
+                    onClick={!trackLoaded ? followTrack : pauseTrack}
                     style={buttonStyle}
                 >
-                    {!trackLoaded ? "Follow Track" : "Resume Track"}
+                    {!trackLoaded ? "Follow Track" : "Pause Track"}
                 </Button>
                 <Button
                     variant="contained"
                     color="primary"
-                    onClick={followingTrack ? pauseTrack : resumeTrack}
+                    disabled={!trackLoaded || (trackLoaded && followingTrack)}
+                    onClick={resumeTrack}
                     style={buttonStyle}
                 >
-                    {followingTrack ? "Pause Track" : "Resume Track"}
+                    Resume Track
                 </Button>
                 <Button
                     variant="contained"

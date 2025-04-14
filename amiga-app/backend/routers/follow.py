@@ -15,7 +15,7 @@ from fastapi import Request
 from google.protobuf.empty_pb2 import Empty
 
 from grpc.aio import AioRpcError
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
 from farm_ng.core.event_service_pb2 import SubscribeRequest
 
 from google.protobuf.json_format import MessageToJson
@@ -24,7 +24,6 @@ from farm_ng.core.uri_pb2 import Uri
 from backend.config import *
 from backend.robot_utils import walk_towards
 import base64
-
 
 
 router = APIRouter()
@@ -74,6 +73,18 @@ async def pause_following(request: Request):
     return {"message": "Pausing track following"}
 
 #Resume
+@router.post("/follow/resume")
+async def resume_following(request: Request):
+    """Instructs the robot to resume track following."""
+    event_manager = request.state.event_manager
+    client = event_manager.clients["track_follower"]
+    
+    try:
+        await client.request_reply("/resume", Empty())
+    except AioRpcError:
+        return {"error": "Not currently following a track"}
+
+    return {"message": "Resuming track following"}
 
 
 @router.post("/follow/stop")
@@ -108,7 +119,7 @@ async def filter_data(
 
     await websocket.accept()
 
-    # client.
+    disconnected = False
 
     async for _, msg in client.subscribe(
         SubscribeRequest(
@@ -117,6 +128,12 @@ async def filter_data(
         ),
         decode=True,
     ):
-        await websocket.send_json(MessageToJson(msg))
+        try:
+            await websocket.send_json(MessageToJson(msg))
+        except WebSocketDisconnect as e:
+            disconnected = True
+            break
 
-    await websocket.close()
+    if not disconnected:
+        await websocket.close()
+    

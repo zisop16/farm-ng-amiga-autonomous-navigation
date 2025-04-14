@@ -32,7 +32,7 @@ from google.protobuf.empty_pb2 import Empty
 from pathlib import Path
 
 from backend.config import *
-from backend.robot_utils import walk_towards
+from backend.robot_utils import walk_towards, format_track
 
 router = APIRouter()
 
@@ -63,11 +63,9 @@ async def start_recording(request: Request, track_name: str):
         return {"error": "Line recording already in progress"}
 
     vars.line_recording = track_name
-    print(track_name)
 
     client = request.state.event_manager.clients["filter"]
     vars.line_start = np.array((await get_pose(client)).translation[:2])
-    print(f"Line started at: {vars.line_start}")
 
     return {"message": f"Recording started for track '{track_name}'."}
 
@@ -89,7 +87,6 @@ async def stop_recording(request: Request):
 
     client = request.state.event_manager.clients["filter"]
     vars.line_end = np.array((await get_pose(client)).translation[:2])
-    print(f"Line ended at: {vars.line_end}")
     return {"message": "Recording stopped successfully."}
 
 @router.post("/line/calibrate_turn/start")
@@ -128,8 +125,8 @@ async def end_turn_calibration(request: Request):
     vars.turn_length = turn_length
 
     line_data = {
-        "start": start_position.tolist(),
-        "end": end_position.tolist(),
+        "start": vars.line_start.tolist(),
+        "end": vars.line_end.tolist(),
         "turn_length": turn_length
     }
     json_text = json.dumps(line_data)
@@ -212,7 +209,7 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData):
     await track_client.request_reply("/set_track", TrackFollowRequest(track=line_track))
     await track_client.request_reply("/start", Empty())
 
-    return {"msg": "Line follow started"}
+    return {"message": "Line follow started"}
 
 @router.post("/line/delete/{track_name}")
 async def delete_track(track_name):
