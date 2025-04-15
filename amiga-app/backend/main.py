@@ -62,6 +62,7 @@ async def lifespan(app: FastAPI):
 
     event_manager = EventClientSubscriptionManager(config_list=service_config_list)
 
+    global queue
     queue = Queue()
     oak_manager = Process(target=startCameras, args=(queue,))
     oak_manager.start()
@@ -90,6 +91,10 @@ app.add_middleware(
 app.include_router(tracks.router)
 app.include_router(record.router)
 app.include_router(follow.router)
+
+@app.on_event("shutdown")
+def shutdown_event():
+    queue.put("shutdown")
 
 if __name__ == "__main__":
 
