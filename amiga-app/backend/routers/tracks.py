@@ -8,6 +8,10 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
+@router.get("/kill")
+async def kill_app():
+    os.kill(os.getpid(), signal.SIGTERM)
+    return fastapi.Response(status_code=200, content='Server shutting down...')
 
 @router.get("/list_tracks")
 async def list_tracks():

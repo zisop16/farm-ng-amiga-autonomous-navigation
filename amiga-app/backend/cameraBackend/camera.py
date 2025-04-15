@@ -64,6 +64,7 @@ class Camera:
         self.streamingServer.start()
 
     def __del__(self):
+        self.streamingServer.terminate()
         self.device.close()
         print("=== Closed " + self.device_info.getMxId())
 
@@ -180,7 +181,7 @@ class Camera:
 
         # Raw ToF camera node
         cam_tof = pipeline.create(dai.node.Camera)
-        cam_tof.setFps(FPS * 2)  # ToF node will produce depth frames at /2 of this rate
+        cam_tof.setFps(self.FPS * 2)  # ToF node will produce depth frames at /2 of this rate
         cam_tof.setBoardSocket(dai.CameraBoardSocket.CAM_A)
         cam_tof.raw.link(tof.input)
 
@@ -197,7 +198,7 @@ class Camera:
         cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_800_P)
         cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
         cam_rgb.setIspScale(1, 2)
-        cam_rgb.setFps(FPS)
+        cam_rgb.setFps(self.FPS)
         cam_rgb.setVideoSize(640, 400)
         # cam_rgb.initialControl.setManualFocus(130)
 
