@@ -206,7 +206,6 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
 
     track_client = event_manager.clients["track_follower"]
     line_track: Track = format_track(total_path)
-    proto_to_json_file(f"{TRACKS_DIR}/linetrack.json", line_track)
 
     await track_client.request_reply("/set_track", TrackFollowRequest(track=line_track))
     await track_client.request_reply("/start", Empty())
