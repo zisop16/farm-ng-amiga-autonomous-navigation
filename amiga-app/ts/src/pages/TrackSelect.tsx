@@ -51,6 +51,18 @@ export default function TrackSelect() {
         setCurrentCamera(event.currentTarget.id);
     };
 
+    const testPointCloud = () => {
+        const align = `${import.meta.env.VITE_API_URL}/pointcloud/align`;
+        fetch(align, { method: "GET" })
+        .then((response) => console.log(response.json()))
+        .catch((err) => console.log(err));
+
+    const save = `${import.meta.env.VITE_API_URL}/pointcloud/save`;
+        fetch(save, { method: "GET" })
+        .then((response) => console.log(response.json()))
+        .catch((err) => console.log(err));
+    }
+
     const buttonStyle = {
         width: "150px",
         height: "130px",
@@ -89,7 +101,7 @@ export default function TrackSelect() {
                             <Button variant="contained" style={buttonStyle} onClick={() => changeSelectedButton("select")} color={selectedButton==="select" ? "secondary" : "primary"}>
                                 <Typography variant="h5" >Select Track</Typography>
                             </Button>
-                            <Button variant="contained" style={buttonStyle} onClick={() => changeSelectedButton("run")} color={selectedButton==="run" ? "secondary" : "primary"}>
+                            <Button variant="contained" disabled={selectedTrack===""} style={buttonStyle} onClick={() => changeSelectedButton("run")} color={selectedButton==="run" ? "secondary" : "primary"}>
                                 <Typography variant="h5">Run Track</Typography>
                             </Button>
 
@@ -111,6 +123,9 @@ export default function TrackSelect() {
                     </Typography>
                 </Grid2>
 
+            {/*<Button variant="contained" style={buttonStyle} onClick={() => testPointCloud()}>
+                test
+            </Button>*/}
             </Grid2>
         </>
     );

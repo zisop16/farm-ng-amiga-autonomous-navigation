@@ -20,6 +20,7 @@ export default function TrackRunMenu(props: TrackRunProps) {
     const [startPosition, setStartPosition] = useState(Vec2.Zero);
     const [rotationAngle, updateRotationAngle] = useState(0);
     const [endPosition, setEndPosition] = useState(Vec2.Zero);
+    const [followingTrack, setFollowingTrack] = useState(false);
 
     useEffect(() => {
         // go to ws:// instead of http://
@@ -91,8 +92,16 @@ export default function TrackRunMenu(props: TrackRunProps) {
     }
 
     function getRemainingDistance() {
-        const diff: Vec2 = endPosition.Sub(currentLocation);
-        return diff.Mag();
+        let msg = "Remaining Distance:";
+        let dist = 0;
+        let followerStateEndpoint = `${import.meta.env.VITE_API_URL}/follow/state`;
+        fetch(followerStateEndpoint, {method: "GET"})
+        .then((response) => response.json())
+        .then(result => {
+            console.log(result["controllable"]);
+        });
+
+        return msg;
     }
 
     // Returns the angle in radians between the robot's current rotation
@@ -115,6 +124,7 @@ function followTrack() {
     .then((result) => {
         if (result.success) {
             console.log("Following track:", result.message);
+            setFollowingTrack(true);
         } else {
             console.error("Failed to follow track:", result.message);
         }
@@ -140,42 +150,16 @@ function pauseTrack() {
         .then((result) => {
             if (result.success) {
                 console.log("Paused track:", result.message);
-                alert(`Paused track following`);
+                setFollowingTrack(false);
             } else {
                 console.error("Failed to pause track:", result.message);
-                alert(`Failed to pause track: ${result.message}`);
             }
         })
         .catch((err) => {
             console.error("Error pausing track:", err);
-            alert("Error pausing track");
         });
 }
-////resume////
-function resumeTrack() {
-    const resumeTrackEndpoint = `${import.meta.env.VITE_API_URL}/resume_following/`;
-    fetch(resumeTrackEndpoint, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        }
-    })
-        .then((response) => response.json())
-        .then((result) => {
-            if (result.success) {
-                console.log("Resumed track:", result.message);
-                alert(`Resumed track following`);
-            } else {
-                console.error("Failed to resume track:", result.message);
-                alert(`Failed to resume track: ${result.message}`);
-            }
-        })
-        .catch((err) => {
-            console.error("Error resuming track:", err);
-            alert("Error resuming track");
-        });
-}
-////
+
 
 useEffect(fetchStartingPoint, [props.selectedTrack]);
 useEffect(fetchEndingPoint, [props.selectedTrack]);
@@ -203,7 +187,7 @@ return (
                     <Typography variant="h4" style={{height: "100px"}}>{twoDigits(getDist())}<br></br>meters</Typography>
                 </Item>
                 <Item>
-                    <Typography variant="h6">Remaining Distance: {twoDigits(getRemainingDistance())}</Typography>
+                    <Typography variant="h6">{getRemainingDistance()}</Typography>
                 </Item>
             </Stack>
             </Grid2>
@@ -231,18 +215,11 @@ return (
                 <Button
                     variant="contained"
                     color="primary"
+                    disabled={!followingTrack}
                     onClick={pauseTrack}
                     style={{ margin: "10px", width: "200px", height: "50px" }}
                 >
                     Pause Track
-                </Button>
-                <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={resumeTrack}
-                    style={{ margin: "10px", width: "200px", height: "50px" }}
-                >
-                    Resume Track
                 </Button>
             </Grid2>
         </Grid2>

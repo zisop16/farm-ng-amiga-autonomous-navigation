@@ -1,4 +1,4 @@
-from farm_ng.core.event_client_manager import EventClientSubscriptionManager
+# from farm_ng.core.event_client_manager import EventClientSubscriptionManager
 import os
 import json
 from typing import Optional
@@ -9,6 +9,8 @@ SERVICE_CONFIG_PATH =  "./service_config.json"
 
 # Directory where track JSON files are stored
 TRACKS_DIR = "./tracks/"
+# Directory where line track JSON files are stored
+LINES_DIR = "./lines/"
 
 POINTCLOUD_DATA_DIR = "./pointcloud_data"
 
