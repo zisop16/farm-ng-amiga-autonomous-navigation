@@ -118,7 +118,7 @@ function followTrack() {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    "num_rows": 2,
+                    "num_rows": numRows,
                     "first_turn_right": false
                 })
             };
