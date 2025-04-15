@@ -5,3 +5,4 @@ amiga-app/.cache/
 
 **/__pycache__/
 amiga-app/backend/cameraBackend/.cache/
+.DS_Store

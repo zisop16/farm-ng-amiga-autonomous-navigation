@@ -17,6 +17,9 @@ cameras: List[Camera] = []
 cameraIps = ["10.95.76.11", "10.95.76.12", "10.95.76.13"]
 CAMERA_PORT = "5000"
 
+FPS = 30
+STREAM_FPS = 10
+
 
 def calibrate_cameras(cameras):
     # TODO: generate camera calibration
@@ -30,7 +33,7 @@ def startCameras(queue=None):
     for device_info in device_infos:
         if device_info.name == "10.95.76.10":
             continue  # Not using Oak0
-        cameras.append(Camera(device_info, CAMERA_PORT))  # Initialize camera
+        cameras.append(Camera(device_info, CAMERA_PORT, FPS, STREAM_FPS))  # Initialize camera
         sleep(2)
 
     pointCloudFusion = PointCloudFusion(cameras)
@@ -44,7 +47,9 @@ def startCameras(queue=None):
             "calibrate_cameras": calibrate_cameras,
             "align_point_clouds": pointCloudFusion.align_point_clouds,
             "reset_alignment": pointCloudFusion.reset_alignment,
-            "save_point_cloud": pointCloudFusion.save_point_cloud,
+            "save_point_cloud_snapshot": pointCloudFusion.save_point_cloud,
+            # "start_point_cloud_continuous": pointCloudFusion.save_point_cloud,
+            # "stop_point_cloud_continuous": pointCloudFusion.save_point_cloud,
         }
         while True:
             msg = queue.get()  # Blocking

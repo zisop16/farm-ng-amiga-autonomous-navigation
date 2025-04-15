@@ -68,5 +68,12 @@ class PointCloudFusion:
         fused_point_cloud = self.cameras[0].point_cloud + self.cameras[1].point_cloud
         o3d.io.write_point_cloud(
             f"{POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_fused.ply", fused_point_cloud)
+
+    def get_point_cloud(self):
+        for camera in self.cameras:
+            camera.update()
+        fused_point_cloud = self.cameras[0].point_cloud + self.cameras[1].point_cloud
+        return fused_point_cloud
+
     def quit(self):
         self.running = False

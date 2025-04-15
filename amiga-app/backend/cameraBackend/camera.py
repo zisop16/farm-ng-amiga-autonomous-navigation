@@ -7,7 +7,7 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 import depthai as dai
 import cv2
 import numpy as np
@@ -17,12 +17,16 @@ from .streamingServer import startStreamingServer
 
 from config import CALIBRATION_DATA_DIR
 
-FPS = 30
-STREAM_FPS = 10
-
-
 class Camera:
-    def __init__(self, device_info: dai.DeviceInfo, stream_port: str):
+    def updateVideoQueue(self):
+        new_frames = self.video_queue.tryGetAll()
+        for frame in new_frames:
+            self.server_stream_queue.put(frame.getRaw().data)
+
+    def __init__(self, device_info: dai.DeviceInfo, stream_port: str, FPS: int, STREAM_FPS: int):
+        self.FPS = FPS
+        self.STREAM_FPS = STREAM_FPS
+
         self._create_pipeline()
         self.device = dai.Device(self.pipeline, device_info)  # Initialize camera
         self.device.setIrLaserDotProjectorBrightness(0)  # Not using active stereo
@@ -35,6 +39,8 @@ class Camera:
         self.video_queue = self.device.getOutputQueue(
             name="video", maxSize=10, blocking=False  # pyright: ignore[reportCallIssue]
         )
+        self.video_queue.addCallback(self.updateVideoQueue)
+        self.server_stream_queue = Queue() # Queue for IPC
         self.sync_queue = SyncQueue(["image", "depth"])
 
         self.device_info = device_info
@@ -49,10 +55,11 @@ class Camera:
 
         print("=== Connected to " + self.device_info.name)
 
+        # Start streams as seperate processes
         self.streamingServer = Process(
             target=startStreamingServer,
             daemon=True,
-            args=(self.video_queue, STREAM_FPS, device_info.name, stream_port),
+            args=(self.server_stream_queue, STREAM_FPS, device_info.name, stream_port),
         )
         self.streamingServer.start()
 
@@ -105,7 +112,8 @@ class Camera:
 
         # Video encoder node for frontend stream
         videoEnc = pipeline.create(dai.node.VideoEncoder)
-        videoEnc.setDefaultProfilePreset(FPS, dai.VideoEncoderProperties.Profile.MJPEG)
+        videoEnc.setDefaultProfilePreset(self.FPS, dai.VideoEncoderProperties.Profile.MJPEG)
+        videoEnc.setFrameRate(self.STREAM_FPS)
         xout_image = pipeline.createXLinkOut()
         xout_image.setStreamName("video")
         videoEnc.bitstream.link(xout_image.input)
