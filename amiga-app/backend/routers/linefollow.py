@@ -8,7 +8,8 @@ from farm_ng.track.track_pb2 import (
     Track,
     TrackFollowRequest,
     TrackFollowerState,
-    TrackStatusEnum
+    TrackStatusEnum,
+    TrackFollowerProgress
 )
 from farm_ng.filter.filter_pb2 import FilterState
 from farm_ng_core_pybind import Isometry3F64
@@ -173,7 +174,9 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
     current_pose = current_pose * Pose3F64(a_from_b=Isometry3F64(), frame_a="robot", frame_b="goal0")
     goal_counter = 1
     total_path: list[Pose3F64] = [current_pose]
-    total_path.extend(walk_towards(current_pose, line_start, goal_counter))
+    current_path, _ = walk_towards(current_pose, line_start, goal_counter)
+    total_path.extend(current_path)
+    row_indices: list[tuple[int, int]] = []
     goal_counter += 2
     def _current_pose():
         return total_path[-1]
@@ -185,7 +188,12 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
         current_position = np.array(_current_pose().translation[:2])
         delta = line_delta if walking_forward else -line_delta
         target_position = current_position + delta
-        total_path.extend(walk_towards(_current_pose(), target_position, goal_counter))
+        current_path, rotate_cutoff = walk_towards(_current_pose(), target_position, goal_counter)
+        # rotate_index = Index of the 1st waypoint where the robot begins walking along the row
+        rotate_index = len(total_path) + rotate_cutoff
+        total_path.extend(current_path)
+        # len(total_path) = Index of the first waypoint where robot isn't walking along the row
+        row_indices.append((rotate_index, len(total_path)))
         goal_counter += 2
         # If this was the last row, we should not prepare for the next turn
         if remaining_rows == 1:
@@ -198,7 +206,9 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
         turn_direction = forward_right_direction if data.first_turn_right else -forward_right_direction
         turn_vector = turn_direction * turn_length
         target_position = current_position + turn_vector
-        total_path.extend(walk_towards(_current_pose(), target_position, goal_counter))
+        current_path, rotate_cutoff = walk_towards(_current_pose(), target_position, goal_counter)
+        rotate_index = len(total_path) + rotate_cutoff
+        total_path.extend(current_path)
         goal_counter += 2
         
         walking_forward = not walking_forward
@@ -211,23 +221,66 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
     await track_client.request_reply("/start", Empty())
     vars.following_track = True
 
-    background_tasks.add_task(handle_image_capture, track_client, vars)
+    background_tasks.add_task(handle_image_capture, track_client, vars, row_indices)
 
     return {"message": "Line follow started"}
 
-async def handle_image_capture(client: EventClient, vars: StateVars):
-    while vars.following_track:
-        state: TrackFollowerState = await client.request_reply("/get_state", Empty(), decode=True)
+async def handle_image_capture(client: EventClient, row_indices: list[tuple[int, int]]):
+    """_summary_
+
+    Args:
+        client (EventClient): Track Follower Client
+        vars (StateVars):
+        row_indices (list[tuple[int, int]]):
+    """
+    current_row_segment = -1
+    last_image_capture = 0
+    distance_between_images = 1
+
+    async for _, message in client.subscribe(
+        SubscribeRequest(
+            uri=Uri(path=f"/track", query=f"service_name=get_state"),
+            every_n=1,
+        ), decode=True
+    ):
+        state: TrackFollowerState = message
         track_status = state.status.track_status
+        if not (track_status == TrackStatusEnum.TRACK_PAUSED or track_status == TrackStatusEnum.TRACK_FOLLOWING):
+            break
         if track_status == TrackStatusEnum.TRACK_PAUSED:
             print("Paused")
-        elif track_status == TrackStatusEnum.TRACK_COMPLETE:
-            print("Complete")
-            break
         else:
-            print(state.progress)
-            print(state.poses)
-        await asyncio.sleep(5)
+            progress: TrackFollowerProgress = state.progress
+            goal_index = state.goal_waypoint_index
+            segment = 0
+            for ind1, ind2 in row_indices:
+                # We go from [ind1 -> ind2) on each row
+                if goal_index >= ind1 and goal_index < ind2:
+                    break
+                segment += 1
+            walking_row = segment != len(row_indices)
+            if walking_row:
+                dist_remaining = progress.distance_remaining
+                if current_row_segment != segment:
+                    # We have started a new segment
+                    current_row_segment = segment
+                    print(f"Started row segment: {current_row_segment}")
+                    last_image_capture = dist_remaining
+                else:
+                    distance_travelled = last_image_capture - dist_remaining
+                    if distance_travelled > distance_between_images:
+                        print(f"Travelled a distance of {distance_travelled} meters. Capturing image")
+                        await client.request_reply("pause", Empty())
+                        await capture_image()
+                        await client.request_reply("resume", Empty())
+                        last_image_capture = dist_remaining
+
+
+        await asyncio.sleep(.1)
+
+async def capture_image():
+    # Dummy function for image capture
+    await asyncio.sleep(3)
 
 @router.post("/line/delete/{track_name}")
 async def delete_track(track_name):

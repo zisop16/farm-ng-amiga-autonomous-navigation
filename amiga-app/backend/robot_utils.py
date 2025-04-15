@@ -24,15 +24,16 @@ def format_track(track_waypoints: list[Pose3F64]) -> Track:
     """
     return Track(waypoints=[pose.to_proto() for pose in track_waypoints])
 
-def walk_towards(current_pose: Pose3F64, target_position: np.array, goal_counter: int) -> list[Pose3F64]:
+def walk_towards(current_pose: Pose3F64, target_position: np.array, goal_counter: int) -> tuple[list[Pose3F64], int]:
     """_summary_
     Given the robot's current pose, outputs the list of poses the robot must use in their track to walk towards the target position
+    Also outputs the index of the waypoint where the robot begins walking forward
     Args:
         current_pose (Pose3F64): Current position / rotation of robot
         position (np.array): Target position
 
     Returns:
-        list[Pose3F64]
+        tuple[list[Pose3F64], int]
     """
     current_position = np.array(current_pose.translation[:2])
     rotation_matrix = current_pose.rotation.rotation_matrix
@@ -53,9 +54,10 @@ def walk_towards(current_pose: Pose3F64, target_position: np.array, goal_counter
     print(f"Rotating {angle_diff} radians")
     if turn != []:
         current_pose = turn[-1]
+    cutoff = len(turn)
     turn.extend(create_straight_segment(current_pose, distance, f"goal{goal_counter + 1}"))
     print(f"Walking forward {distance} meters")
-    return turn
+    return turn, cutoff
 
 
 def create_straight_segment(
