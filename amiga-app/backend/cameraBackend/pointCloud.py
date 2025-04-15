@@ -41,24 +41,25 @@ class PointCloudFusion:
                     source_down,
                     target_down,
                     radius,
-                    camera.point_cloud_alignment,
+                    camera.alignment,
                     o3d.pipelines.registration.TransformationEstimationForColoredICP(),
                     o3d.pipelines.registration.ICPConvergenceCriteria(
                         relative_fitness=1e-6, relative_rmse=1e-6, max_iteration=iter
                     ),
                 )
 
-                camera.point_cloud_alignment = result_icp.transformation
+                camera.alignment = result_icp.transformation
 
             camera.save_point_cloud_alignment()
 
     def reset_alignment(self):
         for camera in self.cameras:
-            camera.point_cloud_alignment = np.identity(4)
+            camera.alignment = np.identity(4)
             camera.save_point_cloud_alignment()
 
     def save_point_cloud(self):
         for camera in self.cameras:
+            camera.update()
             o3d.io.write_point_cloud(
                 f"{POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_{camera.camera_ip}.ply",
                 camera.point_cloud

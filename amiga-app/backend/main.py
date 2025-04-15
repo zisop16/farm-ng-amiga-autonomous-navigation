@@ -73,6 +73,7 @@ async def lifespan(app: FastAPI):
         "oak_manager": oak_manager
     } 
 
+    queue.put("shutdown") # Shutdown cameras properly
     print("Shutting down...")
 
 
