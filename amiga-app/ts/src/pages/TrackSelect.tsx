@@ -48,6 +48,9 @@ export default function TrackSelect() {
                 });
                 fetch(STOP_LINE, {method: "POST"});
             }
+        } else if (selectedButton === "run") {
+            const STOP_RUN = `${import.meta.env.VITE_API_URL}/follow/stop`;
+            fetch(STOP_RUN, {method: "POST"});
         }
         setSelectedButton(newButton);
     }

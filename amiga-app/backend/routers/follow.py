@@ -54,9 +54,8 @@ async def follower_state(request: Request):
 
     state: TrackFollowerState = await client.request_reply("/get_state", Empty(), decode=True)
     
-    controllable = state.status.robot_status.controllable
-    
-    return {"controllable": controllable}
+    failures = state.status.robot_status.failure_modes
+    return {"controllable": failures == []}
 
 
 @router.post("/follow/pause")
@@ -91,11 +90,14 @@ async def resume_following(request: Request):
 async def stop_following(request: Request):
     """Instructs the robot to stop track following."""
     event_manager = request.state.event_manager
+    vars: StateVars = request.state.vars
     client = event_manager.clients["track_follower"]
     try:
         await client.request_reply("/cancel", Empty()), 0.5
     except AioRpcError:
         return {"success": False, "message": "Failed to call /cancel"}
+    
+    vars.following_track = False
 
     return {"success": True, "message": "Stopping track following"}
 

@@ -7,7 +7,8 @@ from farm_ng.core.event_service_pb2 import EventServiceConfig
 from farm_ng.track.track_pb2 import (
     Track,
     TrackFollowRequest,
-    TrackFollowerState
+    TrackFollowerState,
+    TrackStatusEnum
 )
 from farm_ng.filter.filter_pb2 import FilterState
 from farm_ng_core_pybind import Isometry3F64
@@ -74,6 +75,7 @@ async def end_creation(request: Request):
     vars: StateVars = request.state.vars
     vars.line_recording = None
     vars.turn_calibrating = False
+
 
 
 ###stop###
@@ -143,7 +145,7 @@ class LineFollowData(BaseModel):
     num_rows: int
     first_turn_right: bool
 @router.post("/line/follow/{line_name}")
-async def follow_line(request: Request, line_name: str, data: LineFollowData):
+async def follow_line(request: Request, line_name: str, data: LineFollowData, background_tasks: BackgroundTasks):
     vars: StateVars = request.state.vars
     if (vars.following_track):
         return {"error": "Line is currently being followed"}
@@ -208,8 +210,25 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData):
 
     await track_client.request_reply("/set_track", TrackFollowRequest(track=line_track))
     await track_client.request_reply("/start", Empty())
+    vars.following_track = True
+
+    background_tasks.add_task(handle_image_capture, track_client, vars)
 
     return {"message": "Line follow started"}
+
+async def handle_image_capture(client: EventClient, vars: StateVars):
+    while vars.following_track:
+        state: TrackFollowerState = await client.request_reply("/get_state", Empty(), decode=True)
+        track_status = state.status.track_status
+        if track_status == TrackStatusEnum.TRACK_PAUSED:
+            print("Paused")
+        elif track_status == TrackStatusEnum.TRACK_COMPLETE:
+            print("Complete")
+            break
+        else:
+            print(state.progress)
+            print(state.poses)
+        await asyncio.sleep(5)
 
 @router.post("/line/delete/{track_name}")
 async def delete_track(track_name):

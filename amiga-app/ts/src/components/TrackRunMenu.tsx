@@ -101,34 +101,52 @@ export default function TrackRunMenu(props: TrackRunProps) {
     }
 
 function followTrack() {
-    let followTrackEndpoint;
-    let requestData;
-    if (props.selectedType === TrackType.standard) {
-        followTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/start/${props.selectedTrack}`;
-        requestData = {method: "POST"};
-    }  else {
-        followTrackEndpoint = `${import.meta.env.VITE_API_URL}/line/follow/${props.selectedTrack}`;
-        requestData = {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                "num_rows": 2,
-                "first_turn_right": false
-            })
-        };
+    const stateEndpoint = `${import.meta.env.VITE_API_URL}/follow/state`;
+    let controllable;
+
+    function makeFollowTrackRequest() {
+        let followTrackEndpoint;
+        let requestData;
+        if (props.selectedType === TrackType.standard) {
+            followTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/start/${props.selectedTrack}`;
+            requestData = {method: "POST"};
+        }  else {
+            followTrackEndpoint = `${import.meta.env.VITE_API_URL}/line/follow/${props.selectedTrack}`;
+            requestData = {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    "num_rows": 2,
+                    "first_turn_right": false
+                })
+            };
+        }
+        fetch(followTrackEndpoint, requestData)
+        .then((response) => response.json())
+        .then((result) => {
+            if (!result.error) {
+                setTrackLoaded(true);
+                setFollowingTrack(true);
+            } else {
+                console.error("Failed to follow track:", result.error);
+            }
+        });
     }
-    fetch(followTrackEndpoint, requestData)
+
+    fetch(stateEndpoint, {method: "GET"})
     .then((response) => response.json())
     .then((result) => {
-        if (!result.error) {
-            setTrackLoaded(true);
-            setFollowingTrack(true);
+        if (result.controllable) {
+            makeFollowTrackRequest();
         } else {
-            console.error("Failed to follow track:", result.error);
+            window.alert("Make sure the robot's filter service has converged\nAnd that the robot is set to auto mode");
         }
     });
+
+    
+    return;
 }
 
 function pauseTrack() {
