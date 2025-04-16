@@ -65,6 +65,7 @@ async def lifespan(app: FastAPI):
     queue = Queue()
     global oak_manager
     oak_manager = Process(target=startCameras, args=(queue,))
+    print(f"Starting oak manager with PID {oak_manager.pid}")
     oak_manager.start()
     
     asyncio.create_task(event_manager.update_subscriptions())

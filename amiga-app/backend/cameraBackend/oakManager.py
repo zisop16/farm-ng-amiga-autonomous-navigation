@@ -33,6 +33,7 @@ def startCameras(queue=None):
     for device_info in device_infos:
         if device_info.name == "10.95.76.10":
             continue  # Not using Oak0
+        print(f"Initializing camera {device_info.name}")
         cameras.append(Camera(device_info, CAMERA_PORT, FPS, STREAM_FPS))  # Initialize camera
         sleep(2)
 

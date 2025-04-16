@@ -61,6 +61,7 @@ class Camera:
             daemon=True,
             args=(self.server_stream_queue, STREAM_FPS, device_info.name, stream_port),
         )
+        print(f"Starting streaming server for {device_info.name} with PID {self.streamingServer.pid}")
         self.streamingServer.start()
 
     def __del__(self):
