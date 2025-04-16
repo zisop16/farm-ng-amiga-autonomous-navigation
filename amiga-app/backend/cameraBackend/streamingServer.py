@@ -5,6 +5,7 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, camera_ip, stream_port):
+    print(f"Starting RGB MJPEG stream for {camera_ip}...")
     delay = 1 / STREAM_FPS
 
     class HTTPHandler(BaseHTTPRequestHandler):
