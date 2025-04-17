@@ -99,11 +99,12 @@ app.include_router(follow.router)
 def shutdown_event():
     print("Stopping camera services")
     oak_manager.terminate()
+    oak_manager.join(timeout=5)
 
 def handle_sigterm(signum, frame):
     print("Received SIGTERM, stopping camera services")
     oak_manager.terminate()
-    oak_manager.join()
+    oak_manager.join(timeout=5)
 
     if oak_manager.is_alive():
         oak_manager.kill()

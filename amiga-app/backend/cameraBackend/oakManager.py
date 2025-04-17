@@ -16,7 +16,8 @@ from cameraBackend.pointCloud import PointCloudFusion
 # 0 = Oak0, etc
 cameras: List[Camera] = []
 cameraIps = ["10.95.76.11", "10.95.76.12", "10.95.76.13"]
-CAMERA_PORT = "5000"
+# STREAM_PORT_BASE + last 2 digits of ip identifies the port for streaming
+STREAM_PORT_BASE = "50"
 
 FPS = 30
 STREAM_FPS = 10
@@ -35,7 +36,8 @@ def startCameras(queue=None):
         if device_info.name == "10.95.76.10":
             continue  # Not using Oak0
         print(f"Initializing camera {device_info.name}")
-        cameras.append(Camera(device_info, CAMERA_PORT, FPS, STREAM_FPS))  # Initialize camera
+        port = STREAM_PORT_BASE + device_info.name[-2:]
+        cameras.append(Camera(device_info, port, FPS, STREAM_FPS))  # Initialize camera
         sleep(2)
 
     pointCloudFusion = PointCloudFusion(cameras)

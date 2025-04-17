@@ -62,14 +62,14 @@ class Camera:
         self.streamingServer = Process(
             target=startStreamingServer,
             daemon=True,
-            args=(self.server_stream_queue, STREAM_FPS, device_info.name, stream_port),
+            args=(self.server_stream_queue, STREAM_FPS, stream_port),
         )
         self.streamingServer.start()
         print(f"Starting streaming server for {device_info.name} with PID {self.streamingServer.pid}")
 
     def __del__(self):
         self.streamingServer.terminate()
-        self.streamingServer.join()
+        self.streamingServer.join(timeout=5)
 
         if self.streamingServer.is_alive():
             self.streamingServer.kill()

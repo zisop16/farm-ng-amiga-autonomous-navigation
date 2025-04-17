@@ -12,7 +12,7 @@ def handle_sigterm(signum, frame):
 signal.signal(signal.SIGTERM, handle_sigterm)
 
 
-def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, camera_ip, stream_port):
+def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port):
     print(f"Starting RGB MJPEG stream for {camera_ip}...")
     delay = 1 / STREAM_FPS
 
@@ -46,9 +46,8 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, camera_ip, stre
     class ThreadingSimpleServer(HTTPServer):
         pass
 
-    port = int("50" + camera_ip[-2])
-    with ThreadingSimpleServer(("", port), HTTPHandler) as httpd:
+    with ThreadingSimpleServer(("127.0.0.1", stream_port), HTTPHandler) as httpd:
         print(
-            f"Serving RGB MJPEG stream at {camera_ip}:{port}/rgb"
+            f"Serving RGB MJPEG stream at 127.0.0.1:{stream_port}/rgb"
         )
         httpd.serve_forever(poll_interval=1)
