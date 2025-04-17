@@ -5,6 +5,7 @@ import signal
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import socket
 
 def handle_sigterm(signum, frame):
     print("Received SIGTERM, stopping camera stream server")
@@ -17,6 +18,13 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: in
     delay = 1 / STREAM_FPS
 
     class HTTPHandler(BaseHTTPRequestHandler):
+        def setup(self):
+            super().setup()
+            # disable Nagle
+            self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            # unbuffered writes
+            self.wfile = self.request.makefile('wb', buffering=0)
+
         def do_GET(self):
             if self.path == "/rgb":
                 try:
@@ -38,6 +46,7 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: in
                         # self.wfile.write(frame.getData())
                         self.wfile.write(frame_data)
                         self.end_headers()
+                        self.wfile.flush()
                         time.sleep(delay)
 
                 except Exception as ex:

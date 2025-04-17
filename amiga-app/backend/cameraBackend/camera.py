@@ -19,12 +19,11 @@ from config import CALIBRATION_DATA_DIR
 
 class Camera:
     def updateVideoQueue(self):
-        new_frames = self.video_queue.tryGetAll()
-        for frame in new_frames:
-            try:
-                self.server_stream_queue.put(frame.getRaw().data, block=False)
-            except:
-                return
+        new_frame = self.video_queue.tryGet()
+        try:
+            self.server_stream_queue.put_nowait(new_frame.getRaw().data)
+        except:
+            return
 
     def __init__(self, device_info: dai.DeviceInfo, stream_port: int, FPS: int, STREAM_FPS: int):
         self.FPS = FPS
@@ -40,10 +39,10 @@ class Camera:
             name="depth", maxSize=10, blocking=False  # pyright: ignore[reportCallIssue]
         )
         self.video_queue = self.device.getOutputQueue(
-            name="video", maxSize=10, blocking=False  # pyright: ignore[reportCallIssue]
+            name="video", maxSize=1, blocking=False  # pyright: ignore[reportCallIssue]
         )
         self.video_queue.addCallback(self.updateVideoQueue)
-        self.server_stream_queue = Queue(maxsize=10) # Queue for IPC
+        self.server_stream_queue = Queue(maxsize=1) # Queue for IPC
         self.sync_queue = SyncQueue(["image", "depth"])
 
         self.device_info = device_info
