@@ -9,21 +9,20 @@ interface CameraFeedProps {
 };
 
 function orientationToIp(orientation: string) {
-    let baseIp = "http://10.95.76"
+    let baseIp = "http://127.0.0.1"
     switch (orientation) {
         case "left":
-            baseIp += ".11"
+            baseIp += ":5011/rgb"
             break
          case "center":
-            baseIp += ".12"
+            baseIp += ":5012/rgb"
             break
         case "right":
-            baseIp += ".13"
+            baseIp += ":5013/rgb"
             break
         default:
-            baseIp += ".12"
+            baseIp += ":5012/rgb"
     }
-    baseIp += ":5000/rgb"
     return baseIp
 }
 
