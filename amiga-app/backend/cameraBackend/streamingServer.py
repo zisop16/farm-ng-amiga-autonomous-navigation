@@ -1,8 +1,16 @@
 import depthai as dai
 from multiprocessing import Queue
 
+import signal
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+def handle_sigterm(signum, frame):
+    print("Received SIGTERM, stopping camera stream server")
+    sys.exit(0)
+signal.signal(signal.SIGTERM, handle_sigterm)
+
 
 def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, camera_ip, stream_port):
     print(f"Starting RGB MJPEG stream for {camera_ip}...")

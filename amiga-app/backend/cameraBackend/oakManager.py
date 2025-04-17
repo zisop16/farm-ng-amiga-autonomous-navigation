@@ -3,6 +3,7 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import signal
 from multiprocessing import Queue
 import depthai as dai
 from time import sleep
@@ -67,6 +68,14 @@ def startCameras(queue=None):
                 continue
             else:
                 print(f"Unknown message: {msg}")
+
+def handle_sigterm(signum, frame):
+    print("Received SIGTERM, stopping oak manager")
+    for camera in cameras:
+        camera.__del__()
+    sys.exit(0)
+signal.signal(signal.SIGTERM, handle_sigterm)
+
 
 
 if __name__ == "__main__":

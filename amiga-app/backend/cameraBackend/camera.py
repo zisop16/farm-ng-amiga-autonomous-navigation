@@ -70,6 +70,10 @@ class Camera:
     def __del__(self):
         self.streamingServer.terminate()
         self.streamingServer.join()
+
+        if self.streamingServer.is_alive():
+            self.streamingServer.kill()
+            self.streamingServer.join()
         self.device.close()
         print("=== Closed " + self.device_info.getMxId())
 
