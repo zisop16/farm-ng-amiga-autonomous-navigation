@@ -36,7 +36,7 @@ def startCameras(queue=None):
         if device_info.name == "10.95.76.10":
             continue  # Not using Oak0
         print(f"Initializing camera {device_info.name}")
-        port = STREAM_PORT_BASE + device_info.name[-2:]
+        port = int(STREAM_PORT_BASE + device_info.name[-2:])
         cameras.append(Camera(device_info, port, FPS, STREAM_FPS))  # Initialize camera
         sleep(2)
 

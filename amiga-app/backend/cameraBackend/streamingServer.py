@@ -12,7 +12,7 @@ def handle_sigterm(signum, frame):
 signal.signal(signal.SIGTERM, handle_sigterm)
 
 
-def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port):
+def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: int):
     print(f"Starting RGB MJPEG stream for camera at 127.0.0.1:{stream_port}...")
     delay = 1 / STREAM_FPS
 

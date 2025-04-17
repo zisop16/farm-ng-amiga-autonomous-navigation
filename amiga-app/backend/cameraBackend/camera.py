@@ -26,7 +26,7 @@ class Camera:
             except:
                 return
 
-    def __init__(self, device_info: dai.DeviceInfo, stream_port: str, FPS: int, STREAM_FPS: int):
+    def __init__(self, device_info: dai.DeviceInfo, stream_port: int, FPS: int, STREAM_FPS: int):
         self.FPS = FPS
         self.STREAM_FPS = STREAM_FPS
 
