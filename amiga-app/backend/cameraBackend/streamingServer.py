@@ -46,8 +46,9 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, camera_ip, stre
     class ThreadingSimpleServer(HTTPServer):
         pass
 
-    with ThreadingSimpleServer(("", int(stream_port)), HTTPHandler) as httpd:
+    port = int("50" + camera_ip[-2])
+    with ThreadingSimpleServer(("", port), HTTPHandler) as httpd:
         print(
-            f"Serving RGB MJPEG stream at {camera_ip}:{stream_port}/rgb"
+            f"Serving RGB MJPEG stream at {camera_ip}:{port}/rgb"
         )
         httpd.serve_forever(poll_interval=1)
