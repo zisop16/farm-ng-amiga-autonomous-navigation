@@ -2,6 +2,7 @@ import { LinearProgress, Typography, TextField, Button, Grid2, Box, Modal } from
 import React, { useState, useRef } from "react";
 import Keyboard from "react-simple-keyboard";
 import "react-simple-keyboard/build/css/index.css";
+import { useKeyboard } from "../context/KeyboardContext";
 
 export enum TrackType {
     line,
@@ -22,19 +23,10 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
     const [trackCreationError, setTrackCreationError] = useState("");
     const [calibratingTurn, setCalibratingTurn] = useState(false);
     const [lineCreated, setLineCreated] = useState(false);
-
-    // Keyboard
-    const [showKeyboard, setShowKeyboard] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const handleKeyboardInput = (input: string) => {
-        setNewTrackName(input);
-        requestAnimationFrame(() => {
-            if (inputRef.current) {
-                inputRef.current.focus();
-            }
-        });
-    }
+    // Keyboard
+    const { openKeyboard } = useKeyboard();
     
     /*
     The add new track button should not add tracks directly into local storage;
@@ -217,17 +209,14 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                         inputRef={inputRef}
                         value={newTrackName}
                         onChange={(e) => setNewTrackName(e.target.value)}
-                        onFocus={() => setShowKeyboard(true)}
+                        onFocus={() => openKeyboard(setNewTrackName, newTrackName, inputRef)}
                         placeholder="Name of your track"
                         disabled={props.trackBeingCreated}
                         error={trackCreationError !== ""}
                         helperText={trackCreationError}
                         style={{ width: "250px"}}
-                    />
-                                  
+                    />         
                 </Grid2>
-
-                
                 <Grid2 size={6}>
                     <Button variant="contained" disabled={props.trackBeingCreated} onClick={createTrack} style={buttonStyle}>
                         Create Track
@@ -241,18 +230,6 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                 { (trackType === TrackType.line) ? lineTrackButtons() : <></>}
             </Grid2>
         </Box>
-        <Modal open={showKeyboard} BackdropProps={{style: { backgroundColor: "transparent" }}} onClose={() => setShowKeyboard(false)} sx={{
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            border: 'none',
-            outline: 'none',
-        }}>
-            <Keyboard
-                onChange={(input) => handleKeyboardInput(input)}
-                inputName={"newTrackName"}
-            />
-        </Modal>
         </>
     );
 }

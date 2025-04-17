@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Vec2, FromPolar, twoDigits } from "../utils/Vec2";
 import arrow from "../icons/direction-arrow.png"
 import { TrackType } from "./TrackCreateMenu";
+import { useKeyboard } from "../context/KeyboardContext";
 
 interface TrackRunProps {
     selectedTrack: string,
@@ -26,6 +27,16 @@ export default function TrackRunMenu(props: TrackRunProps) {
 
     const [numRows, setNumRows] = useState(1);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Keyboard
+    const { openKeyboard } = useKeyboard();
+
+    const updateNumRows = (input: string) => {
+        let val = toPosInt(input);
+        if (val != false) {
+            setNumRows(val);
+        }
+    };
 
     useEffect(() => {
         // go to ws:// instead of http://
@@ -222,17 +233,12 @@ function lineOptions() {
             type="number"
             inputRef={inputRef}
             value={numRows}
-            onChange={
-                (event) => {
-                    let val = event.target.value;
-                    let asInt = toPosInt(val);
-                    if (asInt === false) {
-                        setNumRows(numRows);
-                    } else {
-                        setNumRows(asInt);
-                    }
-                }
-            }
+            onChange={(event) => updateNumRows(event.target.value)}
+            onFocus={() => openKeyboard(
+                (input) => updateNumRows(input),
+                String(numRows),
+                inputRef
+            )}
             placeholder="Number of rows"
             disabled={trackLoaded}
             error={rowsError()}

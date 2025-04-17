@@ -4,17 +4,20 @@ import Home from './pages/Home'
 import TrackSelect from './pages/TrackSelect'
 import ViewCropYield from "./pages/ViewCropYield";
 import { useEffect } from "react";
+import { KeyboardProvider } from "./context/KeyboardContext";
 
 function App() {
 
     return (
-        <BrowserRouter>
-            <Routes>
-                <Route path="/" element={<Home />}/>
-                <Route path="/TrackSelect" element={<TrackSelect />}/>
-                <Route path="/ViewCropYield" element={<ViewCropYield />}/>
-            </Routes>
-        </BrowserRouter>
+        <KeyboardProvider>
+            <BrowserRouter>
+                <Routes>
+                    <Route path="/" element={<Home />}/>
+                    <Route path="/TrackSelect" element={<TrackSelect />}/>
+                    <Route path="/ViewCropYield" element={<ViewCropYield />}/>
+                </Routes>
+            </BrowserRouter>
+        </KeyboardProvider>
     )
 }
 
