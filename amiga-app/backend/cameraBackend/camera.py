@@ -21,7 +21,10 @@ class Camera:
     def updateVideoQueue(self):
         new_frames = self.video_queue.tryGetAll()
         for frame in new_frames:
-            self.server_stream_queue.put(frame.getRaw().data, block=False)
+            try:
+                self.server_stream_queue.put(frame.getRaw().data, block=False)
+            except:
+                return
 
     def __init__(self, device_info: dai.DeviceInfo, stream_port: str, FPS: int, STREAM_FPS: int):
         self.FPS = FPS
@@ -61,11 +64,12 @@ class Camera:
             daemon=True,
             args=(self.server_stream_queue, STREAM_FPS, device_info.name, stream_port),
         )
-        print(f"Starting streaming server for {device_info.name} with PID {self.streamingServer.pid}")
         self.streamingServer.start()
+        print(f"Starting streaming server for {device_info.name} with PID {self.streamingServer.pid}")
 
     def __del__(self):
         self.streamingServer.terminate()
+        self.streamingServer.join()
         self.device.close()
         print("=== Closed " + self.device_info.getMxId())
 
