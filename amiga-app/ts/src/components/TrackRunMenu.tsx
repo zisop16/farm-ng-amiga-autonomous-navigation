@@ -41,7 +41,7 @@ export default function TrackRunMenu(props: TrackRunProps) {
     useEffect(() => {
         // go to ws:// instead of http://
         const socket_URL = `ws://${import.meta.env.VITE_API_URL.substring(7)}/filter_data`;
-        const detailSocket = new WebSocket(socket_URL, 'echo-protocol');
+        const detailSocket = new WebSocket(socket_URL);
 
         detailSocket.onopen = (event) => {
             // console.log('Detail WebSocket connection opened:', event);

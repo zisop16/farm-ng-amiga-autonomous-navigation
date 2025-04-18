@@ -6,6 +6,10 @@ const ExitButton: React.FC = () => {
 
     const handleClick = () => {
         const baseEndpoint = `http://${window.location.hostname}:8001/systemctl_action/`;
+        const killEndpoint = `${import.meta.env.VITE_API_URL}/kill`;
+
+        // Close the python server
+        fetch(killEndpoint, {method: "GET"});
 
         const requestBody = {
             account_name: appData.account,

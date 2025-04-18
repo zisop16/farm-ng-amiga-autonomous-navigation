@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 
-from farm_ng.core.event_client_manager import EventClient
+
 from farm_ng.core.events_file_reader import proto_from_json_file
 from farm_ng.track.track_pb2 import (
     Track,
@@ -15,11 +15,14 @@ from fastapi import Request
 from google.protobuf.empty_pb2 import Empty
 
 from grpc.aio import AioRpcError
+
+from farm_ng.core.event_client_manager import EventClient
 from fastapi import WebSocket, WebSocketDisconnect
 from farm_ng.core.event_service_pb2 import SubscribeRequest
+from farm_ng.core.uri_pb2 import Uri
 
 from google.protobuf.json_format import MessageToJson
-from farm_ng.core.uri_pb2 import Uri
+
 
 from backend.config import *
 from backend.robot_utils import walk_towards
@@ -100,42 +103,3 @@ async def stop_following(request: Request):
     vars.following_track = False
 
     return {"success": True, "message": "Stopping track following"}
-
-@router.websocket("/filter_data")
-async def filter_data(
-    websocket: WebSocket,
-    every_n: int = 10
-):
-    """Coroutine to subscribe to filter state service via websocket.
-    
-    Args:
-        websocket (WebSocket): the websocket connection
-        every_n (int, optional): the frequency to receive events.
-    
-    Usage:
-        ws = new WebSocket(`${API_URL}/filter_data`)
-    """
-    event_manager = websocket.state.event_manager
-    full_service_name = "filter"
-    client: EventClient = (event_manager.clients[full_service_name])
-
-    await websocket.accept()
-
-    disconnected = False
-
-    async for _, msg in client.subscribe(
-        SubscribeRequest(
-            uri=Uri(path=f"/state", query=f"service_name={full_service_name}"),
-            every_n=every_n,
-        ),
-        decode=True,
-    ):
-        try:
-            await websocket.send_json(MessageToJson(msg))
-        except WebSocketDisconnect as e:
-            disconnected = True
-            break
-
-    if not disconnected:
-        await websocket.close()
-    

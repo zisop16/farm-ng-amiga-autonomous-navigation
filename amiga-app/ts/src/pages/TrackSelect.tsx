@@ -59,6 +59,8 @@ export default function TrackSelect() {
         if (!tracksUpdate) {return;}
         const trackListEndpoint = `${import.meta.env.VITE_API_URL}/list_tracks`;
         const lineListEndpoint = `${import.meta.env.VITE_API_URL}/line/list`;
+        // hi
+        console.log("hi");
         
         fetch(trackListEndpoint, { method: "GET" })
         .then((response) => response.json())
