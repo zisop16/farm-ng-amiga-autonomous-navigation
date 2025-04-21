@@ -20,10 +20,8 @@ from config import CALIBRATION_DATA_DIR
 class Camera:
     def updateVideoQueue(self):
         new_frame = self.video_queue.tryGet()
-        try:
+        if new_frame is not None:
             self.server_stream_queue.put_nowait(new_frame.getRaw().data)
-        except:
-            return
 
     def __init__(self, device_info: dai.DeviceInfo, stream_port: int, FPS: int, STREAM_FPS: int):
         self.FPS = FPS
@@ -123,9 +121,9 @@ class Camera:
         videoEnc = pipeline.create(dai.node.VideoEncoder)
         videoEnc.setDefaultProfilePreset(self.FPS, dai.VideoEncoderProperties.Profile.MJPEG)
         videoEnc.setFrameRate(self.STREAM_FPS)
-        xout_image = pipeline.createXLinkOut()
-        xout_image.setStreamName("video")
-        videoEnc.bitstream.link(xout_image.input)
+        xout_video = pipeline.createXLinkOut()
+        xout_video.setStreamName("video")
+        videoEnc.bitstream.link(xout_video.input)
 
         # Output frontend streaming server node
         # server = pipeline.create(dai.node.Script)

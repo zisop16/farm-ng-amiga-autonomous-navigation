@@ -58,12 +58,6 @@ def startCameras(queue=None):
         while True:
             msg = queue.get()  # Blocking
 
-            if msg == "shutdown":
-                # TODO: check if this is all that's needed to shutdown cameras properly
-                for camera in cameras:
-                    camera.__del__()
-                return
-
             action = actions.get(msg, None)
             if action:
                 action()
