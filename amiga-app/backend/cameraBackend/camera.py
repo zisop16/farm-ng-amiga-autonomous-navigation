@@ -66,6 +66,7 @@ class Camera:
             target=startStreamingServer,
             daemon=True,
             args=(self.server_stream_queue, STREAM_FPS, stream_port),
+            name=f"{self.camera_ip}-stream"
         )
         self.streamingServer.start()
         print(

@@ -77,8 +77,8 @@ async def lifespan(app: FastAPI):
         "oak_manager": oak_manager
     } 
 
-    queue.put("shutdown") # Shutdown cameras properly
-    print("Shutting down...")
+    print("Stopping camera services...")
+
 
 
 app = FastAPI(lifespan=lifespan)
@@ -95,12 +95,7 @@ app.include_router(tracks.router)
 app.include_router(record.router)
 app.include_router(follow.router)
 
-@app.on_event("shutdown")
-def shutdown_event():
-    print("Stopping camera services")
-    oak_manager.terminate()
-    oak_manager.join(timeout=5)
-
+    
 def handle_sigterm(signum, frame):
     print("Received SIGTERM, stopping camera services")
     oak_manager.terminate()

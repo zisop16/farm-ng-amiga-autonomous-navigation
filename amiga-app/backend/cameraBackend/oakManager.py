@@ -27,7 +27,7 @@ def startCameras(queue=None):
     device_infos = dai.Device.getAllAvailableDevices()
     device_infos.sort(key=lambda x: x.name, reverse=True)  # Sort by ip
     print(
-        f"Found {len(device_infos)} devices: {[device_info.name+', ' for device_info in device_infos]}"
+        f"Found {len(device_infos)} devices: {[device_info.name for device_info in device_infos]}"
     )
     for device_info in device_infos:
         if device_info.name == "10.95.76.10":
@@ -66,7 +66,7 @@ def startCameras(queue=None):
 def handle_sigterm(signum, frame):
     print("Received SIGTERM, stopping oak manager")
     for camera in cameras:
-        camera.__del__()
+        camera.shutdown()
     sys.exit(0)
 
 
