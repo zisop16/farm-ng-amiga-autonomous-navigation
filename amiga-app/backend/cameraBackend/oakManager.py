@@ -50,11 +50,13 @@ def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
     """
 
     # Register handler here so the while loop can be interrupted
+    running = True
     def handle_sigterm(signum, frame):
         print("Received SIGTERM, stopping oak manager")
         for camera in cameras:
             camera.shutdown()
-        sys.exit(0)
+        running = False
+        return
 
     signal.signal(signal.SIGTERM, handle_sigterm)
 
@@ -84,7 +86,7 @@ def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
             "reset_alignment": pointCloudFusion.reset_alignment,
             "save_point_cloud_snapshot": pointCloudFusion.save_point_cloud,
         }
-        while True:
+        while running:
             try:
                 msg = queue.get(timeout=0.1)  # Blocking
             except Empty:
@@ -96,6 +98,7 @@ def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
                 continue
             else:
                 print(f"Unknown message: {msg}")
+    return
 
 
 # if __name__ == "__main__":

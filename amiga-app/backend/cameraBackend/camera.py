@@ -142,16 +142,11 @@ class Camera:
         )
         self.streamingServer.start()
         print(
-            f"Starting streaming server for {device_info.name} with PID {self.streamingServer.pid}"
+            f"Starting streaming server for camera {device_info.name} with PID {self.streamingServer.pid}"
         )
 
     def shutdown(self):
         self.streamingServer.terminate()
-        self.streamingServer.join(timeout=5)
-
-        if self.streamingServer.is_alive():
-            self.streamingServer.kill()
-            self.streamingServer.join()
         self._device.close()
         print("=== Closed " + self._device_info.name)
 
