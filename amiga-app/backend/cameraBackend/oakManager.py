@@ -50,7 +50,6 @@ def startCameras(queue=None):
             "save_point_cloud_snapshot": pointCloudFusion.save_point_cloud,
             # "start_point_cloud_continuous": pointCloudFusion.save_point_cloud,
             # "stop_point_cloud_continuous": pointCloudFusion.save_point_cloud,
-            "shutdown": lambda: [camera.shutdown() for camera in cameras],
         }
         while True:
             msg = queue.get()  # Blocking

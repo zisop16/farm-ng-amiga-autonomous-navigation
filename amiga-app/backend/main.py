@@ -78,7 +78,9 @@ async def lifespan(app: FastAPI):
     } 
 
     print("Stopping camera services...")
-    queue.put("shutdown") # Shutdown cameras properly
+    # Shutdown cameras properly
+    oak_manager.terminate()
+    oak_manager.join()
 
 
 
