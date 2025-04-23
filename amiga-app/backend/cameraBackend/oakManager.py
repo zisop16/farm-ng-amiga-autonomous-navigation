@@ -23,11 +23,6 @@ FPS = 30
 STREAM_FPS = 10
 
 
-def calibrate_cameras(cameras):
-    # TODO: generate camera calibration
-    pass
-
-
 def startCameras(queue=None):
     device_infos = dai.Device.getAllAvailableDevices()
     device_infos.sort(key=lambda x: x.name, reverse=True)  # Sort by ip
@@ -48,12 +43,12 @@ def startCameras(queue=None):
         # positioning. Calibration requires calibration pattern and is
         # mandatory. Alignment is optional and can be done on the fly.
         actions = {
-            "calibrate_cameras": calibrate_cameras,
             "align_point_clouds": pointCloudFusion.align_point_clouds,
             "reset_alignment": pointCloudFusion.reset_alignment,
             "save_point_cloud_snapshot": pointCloudFusion.save_point_cloud,
             # "start_point_cloud_continuous": pointCloudFusion.save_point_cloud,
             # "stop_point_cloud_continuous": pointCloudFusion.save_point_cloud,
+            "shutdown": [camera.__del__() for camera in cameras]
         }
         while True:
             msg = queue.get()  # Blocking

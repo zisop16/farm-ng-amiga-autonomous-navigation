@@ -18,10 +18,10 @@ from .streamingServer import startStreamingServer
 from config import CALIBRATION_DATA_DIR
 
 class Camera:
-    # def updateVideoQueue(self):
-    #     new_frame = self.video_queue.tryGet()
-    #     if new_frame is not None:
-    #         self.server_stream_queue.put_nowait(new_frame.getRaw().data)
+    def updateVideoQueue(self):
+        new_frame = self.video_queue.tryGet()
+        if new_frame is not None:
+            self.server_stream_queue.put(new_frame.getRaw().data, block = False)
 
     def __init__(self, device_info: dai.DeviceInfo, stream_port: int, FPS: int, STREAM_FPS: int):
         self.FPS = FPS
@@ -40,11 +40,11 @@ class Camera:
         self.depth_queue = self.device.getOutputQueue(
             name="depth", maxSize=10, blocking=False  # pyright: ignore[reportCallIssue]
         )
-        # self.video_queue = self.device.getOutputQueue(
-        #     name="video", maxSize=1, blocking=False  # pyright: ignore[reportCallIssue]
-        # )
-        # self.video_queue.addCallback(self.updateVideoQueue)
-        # self.server_stream_queue = Queue(maxsize=1) # Queue for IPC
+        self.video_queue = self.device.getOutputQueue(
+            name="video", maxSize=1, blocking=False  # pyright: ignore[reportCallIssue]
+        )
+        self.video_queue.addCallback(self.updateVideoQueue)
+        self.server_stream_queue = Queue(maxsize=1) # Queue for IPC
         self.sync_queue = SyncQueue(["image", "depth"])
 
         
@@ -57,21 +57,21 @@ class Camera:
         print("=== Connected to " + self.device_info.name)
 
         # Start streams as seperate processes
-        # self.streamingServer = Process(
-        #     target=startStreamingServer,
-        #     daemon=True,
-        #     args=(self.server_stream_queue, STREAM_FPS, stream_port),
-        # )
-        # self.streamingServer.start()
-        # print(f"Starting streaming server for {device_info.name} with PID {self.streamingServer.pid}")
+        self.streamingServer = Process(
+            target=startStreamingServer,
+            daemon=True,
+            args=(self.server_stream_queue, STREAM_FPS, stream_port),
+        )
+        self.streamingServer.start()
+        print(f"Starting streaming server for {device_info.name} with PID {self.streamingServer.pid}")
 
     def __del__(self):
-        # self.streamingServer.terminate()
-        # self.streamingServer.join(timeout=5)
-        #
-        # if self.streamingServer.is_alive():
-        #     self.streamingServer.kill()
-        #     self.streamingServer.join()
+        self.streamingServer.terminate()
+        self.streamingServer.join(timeout=5)
+
+        if self.streamingServer.is_alive():
+            self.streamingServer.kill()
+            self.streamingServer.join()
         self.device.close()
         print("=== Closed " + self.device_info.getMxId())
 
@@ -122,53 +122,54 @@ class Camera:
         videoEnc = pipeline.create(dai.node.VideoEncoder)
         videoEnc.setDefaultProfilePreset(self.FPS, dai.VideoEncoderProperties.Profile.MJPEG)
         videoEnc.setFrameRate(self.STREAM_FPS)
-        # xout_video = pipeline.createXLinkOut()
-        # xout_video.setStreamName("video")
-        # videoEnc.bitstream.link(xout_video.input)
+        xout_video = pipeline.createXLinkOut()
+        xout_video.setStreamName("video")
+        xout_video.setFpsLimit(self.STREAM_FPS)
+        videoEnc.bitstream.link(xout_video.input)
 
         # Output frontend streaming server node
-        server = pipeline.create(dai.node.Script)
-        videoEnc.bitstream.link(server.inputs['frame'])
-
-        server.setProcessor(dai.ProcessorType.LEON_CSS)
-        server.inputs['frame'].setBlocking(False)
-        server.inputs['frame'].setQueueSize(1)
-
-        server.setScript(f"""
-        import time
-        import socket
-        from http.server import BaseHTTPRequestHandler, HTTPServer
-
-        class HTTPHandler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                if self.path == '/rgb':
-                    try:
-                        delay = {1/self.STREAM_FPS}
-                        self.send_response(200)
-                        self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=--jpgboundary')
-                        self.end_headers()
-                        while True:
-                            frame = node.io['frame'].get()
-
-                            self.wfile.write("--jpgboundary".encode())
-                            self.wfile.write(bytes([13, 10]))
-                            self.send_header('Content-type', 'image/jpeg')
-                            self.send_header('Content-length', str(len(frame.getData())))
-                            self.end_headers()
-                            self.wfile.write(frame.getData())
-                            self.end_headers()
-                            time.sleep(delay)
-
-                    except Exception as ex:
-                        node.warn("Client disconnected")
-
-        class ThreadingSimpleServer(HTTPServer):
-            pass
-
-        with ThreadingSimpleServer(("", {self.stream_port}), HTTPHandler) as httpd:
-            node.warn(f"Serving RGB MJPEG stream at {self.camera_ip + ":" + str(self.stream_port) + "/rgb"}")
-            httpd.serve_forever()
-        """)
+        # server = pipeline.create(dai.node.Script)
+        # videoEnc.bitstream.link(server.inputs['frame'])
+        #
+        # server.setProcessor(dai.ProcessorType.LEON_CSS)
+        # server.inputs['frame'].setBlocking(False)
+        # server.inputs['frame'].setQueueSize(1)
+        #
+        # server.setScript(f"""
+        # import time
+        # import socket
+        # from http.server import BaseHTTPRequestHandler, HTTPServer
+        #
+        # class HTTPHandler(BaseHTTPRequestHandler):
+        #     def do_GET(self):
+        #         if self.path == '/rgb':
+        #             try:
+        #                 delay = {1/self.STREAM_FPS}
+        #                 self.send_response(200)
+        #                 self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=--jpgboundary')
+        #                 self.end_headers()
+        #                 while True:
+        #                     frame = node.io['frame'].get()
+        #
+        #                     self.wfile.write("--jpgboundary".encode())
+        #                     self.wfile.write(bytes([13, 10]))
+        #                     self.send_header('Content-type', 'image/jpeg')
+        #                     self.send_header('Content-length', str(len(frame.getData())))
+        #                     self.end_headers()
+        #                     self.wfile.write(frame.getData())
+        #                     self.end_headers()
+        #                     time.sleep(delay)
+        #
+        #             except Exception as ex:
+        #                 node.warn("Client disconnected")
+        #
+        # class ThreadingSimpleServer(HTTPServer):
+        #     pass
+        #
+        # with ThreadingSimpleServer(("", {self.stream_port}), HTTPHandler) as httpd:
+        #     node.warn(f"Serving RGB MJPEG stream at {self.camera_ip + ":" + str(self.stream_port) + "/rgb"}")
+        #     httpd.serve_forever()
+        # """)
 
         # Time of Flight to depth node
         tof = pipeline.create(dai.node.ToF)
