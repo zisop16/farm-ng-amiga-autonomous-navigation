@@ -50,13 +50,11 @@ def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
     """
 
     # Register handler here so the while loop can be interrupted
-    running = True
     def handle_sigterm(signum, frame):
         print("Received SIGTERM, stopping oak manager")
         for camera in cameras:
             camera.shutdown()
-        running = False
-        return
+        sys.exit(0)
 
     signal.signal(signal.SIGTERM, handle_sigterm)
 
@@ -72,7 +70,7 @@ def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
         port = int(STREAM_PORT_BASE + device_info.name[-2:])
         # Initialize camera
         cameras.append(Camera(device_info, port, TOF_FPS, VIDEO_FPS))
-        sleep(2) # BUG: problem with DepthAI? Can't initialize cameras all at once
+        sleep(2)  # BUG: problem with DepthAI? Can't initialize cameras all at once
 
     pointCloudFusion = PointCloudFusion(cameras, POINTCLOUD_DATA_DIR)
 
@@ -86,7 +84,7 @@ def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
             "reset_alignment": pointCloudFusion.reset_alignment,
             "save_point_cloud_snapshot": pointCloudFusion.save_point_cloud,
         }
-        while running:
+        while True:
             try:
                 msg = queue.get(timeout=0.1)  # Blocking
             except Empty:
@@ -98,7 +96,6 @@ def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
                 continue
             else:
                 print(f"Unknown message: {msg}")
-    return
 
 
 # if __name__ == "__main__":
