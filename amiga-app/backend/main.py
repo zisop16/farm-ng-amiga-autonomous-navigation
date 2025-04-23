@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
     global queue
     queue = Queue()
     global oak_manager
-    oak_manager = Process(target=startCameras, args=(queue,))
+    oak_manager = Process(target=startCameras, args=(queue, POINTCLOUD_DATA_DIR))
     oak_manager.start()
     print(f"Starting oak manager with PID {oak_manager.pid}")
     
