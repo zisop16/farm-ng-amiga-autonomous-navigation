@@ -102,6 +102,7 @@ app.include_router(follow.router)
 def handle_sigterm(signum, frame):
     print("Received SIGTERM, stopping camera services")
     oak_manager.terminate()
+    oak_manager.join()
     sys.exit(0)
 signal.signal(signal.SIGTERM, handle_sigterm)
 

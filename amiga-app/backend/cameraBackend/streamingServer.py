@@ -7,10 +7,6 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import socket
 
-def handle_sigterm(signum, frame):
-    print("Received SIGTERM, stopping camera stream server")
-    sys.exit(0)
-signal.signal(signal.SIGTERM, handle_sigterm)
 
 
 def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: int):
@@ -84,6 +80,12 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: in
         pass
 
     with ThreadingSimpleServer(("127.0.0.1", stream_port), HTTPHandler) as httpd:
+        def handle_sigterm(signum, frame):
+            print("Received SIGTERM, stopping camera stream server")
+            httpd.shutdown()
+            sys.exit(0)
+        signal.signal(signal.SIGTERM, handle_sigterm)
+
         print(
             f"Serving RGB MJPEG stream at 127.0.0.1:{stream_port}/rgb"
         )
