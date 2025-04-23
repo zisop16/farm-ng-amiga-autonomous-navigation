@@ -1,17 +1,19 @@
 from fastapi import APIRouter
 from fastapi import HTTPException
+from fastapi import Response
 import json
 from pathlib import Path
 
 from backend.config import *
 from pydantic import BaseModel
+import signal
 
 router = APIRouter()
 
 @router.get("/kill")
 async def kill_app():
     os.kill(os.getpid(), signal.SIGTERM)
-    return fastapi.Response(status_code=200, content='Server shutting down...')
+    return Response(status_code=200, content='Server shutting down...')
 
 @router.get("/list_tracks")
 async def list_tracks():

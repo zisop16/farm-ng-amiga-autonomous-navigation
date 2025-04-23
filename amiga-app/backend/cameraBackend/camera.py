@@ -210,6 +210,8 @@ class Camera:
         xout_video = pipeline.createXLinkOut()
         xout_video.setStreamName("video")
         xout_video.setFpsLimit(self.VIDEO_FPS)
+        xout_video.input.setBlocking(False)
+        xout_video.input.setQueueSize(1)
         video_enc.bitstream.link(xout_video.input)
 
         # Time‐of‐flight / depth pipeline
