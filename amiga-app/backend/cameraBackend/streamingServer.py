@@ -81,8 +81,7 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: in
 
     with ThreadingSimpleServer(("127.0.0.1", stream_port), HTTPHandler) as httpd:
         def handle_sigterm(signum, frame):
-            print("Received SIGTERM, stopping camera stream server")
-            httpd.shutdown()
+            print(f"Received SIGTERM, stopping camera stream server for 127.0.0.1:{stream_port}")
             sys.exit(0)
         signal.signal(signal.SIGTERM, handle_sigterm)
 
