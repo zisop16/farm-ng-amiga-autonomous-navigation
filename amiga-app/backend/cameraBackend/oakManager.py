@@ -26,7 +26,9 @@ STREAM_FPS = 10
 def startCameras(queue=None):
     device_infos = dai.Device.getAllAvailableDevices()
     device_infos.sort(key=lambda x: x.name, reverse=True)  # Sort by ip
-    print(device_infos)
+    print(
+        f"Found {len(device_infos)} devices: {[device_info.name+', ' for device_info in device_infos]}"
+    )
     for device_info in device_infos:
         if device_info.name == "10.95.76.10":
             continue  # Not using Oak0
@@ -48,7 +50,7 @@ def startCameras(queue=None):
             "save_point_cloud_snapshot": pointCloudFusion.save_point_cloud,
             # "start_point_cloud_continuous": pointCloudFusion.save_point_cloud,
             # "stop_point_cloud_continuous": pointCloudFusion.save_point_cloud,
-            "shutdown": [camera.__del__() for camera in cameras]
+            "shutdown": lambda: [camera.shutdown() for camera in cameras],
         }
         while True:
             msg = queue.get()  # Blocking
@@ -60,13 +62,15 @@ def startCameras(queue=None):
             else:
                 print(f"Unknown message: {msg}")
 
+
 def handle_sigterm(signum, frame):
     print("Received SIGTERM, stopping oak manager")
     for camera in cameras:
         camera.__del__()
     sys.exit(0)
-signal.signal(signal.SIGTERM, handle_sigterm)
 
+
+signal.signal(signal.SIGTERM, handle_sigterm)
 
 
 if __name__ == "__main__":

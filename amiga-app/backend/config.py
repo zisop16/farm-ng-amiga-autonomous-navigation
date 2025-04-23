@@ -15,7 +15,7 @@ LINES_DIR = "./lines/"
 POINTCLOUD_DATA_DIR = "./pointcloud_data"
 
 # Camera configs
-CALIBRATION_DATA_DIR = "./calibration_data"
+CALIBRATION_DATA_DIR = "./cameraBackend/calibration_data"
 MIN_RANGE_MM = 100
 MAX_RANGE_MM = 1000
 

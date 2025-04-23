@@ -17,13 +17,19 @@ from .streamingServer import startStreamingServer
 
 from config import CALIBRATION_DATA_DIR
 
+
 class Camera:
     def updateVideoQueue(self):
         new_frame = self.video_queue.tryGet()
         if new_frame is not None:
-            self.server_stream_queue.put(new_frame.getRaw().data, block = False)
+            try:
+                self.server_stream_queue.put(new_frame.getRaw().data, block=False)
+            except:
+                return
 
-    def __init__(self, device_info: dai.DeviceInfo, stream_port: int, FPS: int, STREAM_FPS: int):
+    def __init__(
+        self, device_info: dai.DeviceInfo, stream_port: int, FPS: int, STREAM_FPS: int
+    ):
         self.FPS = FPS
         self.STREAM_FPS = STREAM_FPS
 
@@ -33,7 +39,7 @@ class Camera:
         self.device = dai.Device(self.pipeline, device_info)  # Initialize camera
         self.device.setIrLaserDotProjectorBrightness(0)  # Not using active stereo
         self.device_info = device_info
-        
+
         self.image_queue = self.device.getOutputQueue(
             name="image", maxSize=10, blocking=False  # pyright: ignore[reportCallIssue]
         )
@@ -44,10 +50,9 @@ class Camera:
             name="video", maxSize=1, blocking=False  # pyright: ignore[reportCallIssue]
         )
         self.video_queue.addCallback(self.updateVideoQueue)
-        self.server_stream_queue = Queue(maxsize=1) # Queue for IPC
+        self.server_stream_queue = Queue(maxsize=1)  # Queue for IPC
         self.sync_queue = SyncQueue(["image", "depth"])
 
-        
         self.image_frame = None
         self.depth_frame = None
         self.point_cloud = o3d.geometry.PointCloud()
@@ -63,9 +68,11 @@ class Camera:
             args=(self.server_stream_queue, STREAM_FPS, stream_port),
         )
         self.streamingServer.start()
-        print(f"Starting streaming server for {device_info.name} with PID {self.streamingServer.pid}")
+        print(
+            f"Starting streaming server for {device_info.name} with PID {self.streamingServer.pid}"
+        )
 
-    def __del__(self):
+    def shutdown(self):
         self.streamingServer.terminate()
         self.streamingServer.join(timeout=5)
 
@@ -73,7 +80,13 @@ class Camera:
             self.streamingServer.kill()
             self.streamingServer.join()
         self.device.close()
-        print("=== Closed " + self.device_info.getMxId())
+        print("=== Closed " + self.device_info.name)
+
+    def __del__(self):
+        try:
+            self.shutdown()
+        except:
+            return
 
     def _load_calibration(self):
         path = f"{CALIBRATION_DATA_DIR}/extrinsics_{self.camera_ip}.npz"
@@ -108,7 +121,7 @@ class Camera:
         except:
             self.alignment = np.eye(4)  # Default to no alignment correction
 
-        print(self.pinhole_camera_intrinsic)
+        # print(self.pinhole_camera_intrinsic)
 
     def save_point_cloud_alignment(self):
         np.save(
@@ -120,7 +133,9 @@ class Camera:
 
         # Video encoder node for frontend stream
         videoEnc = pipeline.create(dai.node.VideoEncoder)
-        videoEnc.setDefaultProfilePreset(self.FPS, dai.VideoEncoderProperties.Profile.MJPEG)
+        videoEnc.setDefaultProfilePreset(
+            self.FPS, dai.VideoEncoderProperties.Profile.MJPEG
+        )
         videoEnc.setFrameRate(self.STREAM_FPS)
         xout_video = pipeline.createXLinkOut()
         xout_video.setStreamName("video")
@@ -189,7 +204,9 @@ class Camera:
 
         # Raw ToF camera node
         cam_tof = pipeline.create(dai.node.Camera)
-        cam_tof.setFps(self.FPS * 2)  # ToF node will produce depth frames at /2 of this rate
+        cam_tof.setFps(
+            self.FPS * 2
+        )  # ToF node will produce depth frames at /2 of this rate
         cam_tof.setBoardSocket(dai.CameraBoardSocket.CAM_A)
         cam_tof.raw.link(tof.input)
 
