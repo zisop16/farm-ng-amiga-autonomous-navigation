@@ -78,6 +78,7 @@ async def lifespan(app: FastAPI):
     } 
 
     print("Stopping camera services...")
+    queue.put("shutdown") # Shutdown cameras properly
 
 
 
