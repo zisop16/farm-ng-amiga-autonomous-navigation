@@ -1,2 +1,0 @@
-class continuousPointCloud:
-    pass

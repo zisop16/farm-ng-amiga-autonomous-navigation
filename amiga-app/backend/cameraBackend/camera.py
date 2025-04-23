@@ -19,8 +19,76 @@ from config import CALIBRATION_DATA_DIR
 
 
 class Camera:
-    def updateVideoQueue(self):
-        new_frame = self.video_queue.tryGet()
+    """
+    Manages a DepthAI camera device, captures RGB-D point clouds, and hosts
+    an HTTP MJPEG stream.
+
+    On initialization, builds and starts a DepthAI pipeline with:
+
+      - A VideoEncoder node to produce MJPEG frames at VIDEO_FPS, forwarded to a
+        background streaming server process on localhost at the given TCP port.
+      - A ToF node configured to emit depth frames at TOF_FPS.
+      - An RGB camera producing ISP frames at TOF_FPS for color data.
+      - Queues to receive video, image, and depth frames from the camera.
+
+    Calibration data (intrinsics, extrinsics, and alignment) are loaded from disk
+    to project depth + color into a Open3D PointCloud.
+
+    Args:
+        device_info (dai.DeviceInfo):
+            DepthAI object containing information about the camera.
+        stream_port (int):
+            TCP port on which to serve the MJPEG video stream. Has to be unique.
+        TOF_FPS (int):
+            Frames per second for the time-of-flight sensor.
+        VIDEO_FPS (int):
+            Frames per second for the MJPEG video encoder.
+
+    Attributes:
+        _camera_ip (str):
+            Network address of the camera. Only for identification.
+        stream_port (int):
+            Port for the MJPEG HTTP server.
+        TOF_FPS (int):
+            Depth frame rate.
+        VIDEO_FPS (int):
+            Video frame rate.
+        _pipeline (dai.Pipeline):
+            DepthAI pipeline to be uploaded to the camera.
+        _device (dai.Device):
+            Active DepthAI device instance.
+        _image_queue, _depth_queue, _video_queue (dai.Queue):
+            Non-blocking queues for frames.
+        server_stream_queue (multiprocessing.Queue):
+            IPC queue feeding the streaming server.
+        _sync_queue (SyncQueue):
+            Helper to synchronize depth + image pairs.
+        _image_frame (ndarray):
+            Latest RGB frame.
+        _depth_frame (ndarray):
+            Latest depth frame.
+        point_cloud (o3d.geometry.PointCloud):
+            Latest fused point cloud.
+        streamingServer (multiprocessing.Process):
+            Background MJPEG server process.
+
+    Methods:
+        _updateVideoQueue():
+            Callback invoked on new encoded video frames; enqueues raw JPEG bytes
+            into the server_stream_queue for HTTP serving.
+        update():
+            Polls image & depth queues, synchronizes frames, converts to point cloud.
+        _rgbd_to_point_cloud(depth_frame, image_frame, downsample=False, remove_noise=False):
+            Builds an Open3D PointCloud from aligned RGB + depth data with optional
+            voxel-downsampling and denoising.
+        save_point_cloud_alignment():
+            Saves the current 'alignment' matrix to disk for later reuse.
+        shutdown():
+            Gracefully terminates the streaming server process and closes the device.
+    """
+
+    def _updateVideoQueue(self):
+        new_frame = self._video_queue.tryGet()
         if new_frame is not None:
             try:
                 self.server_stream_queue.put(new_frame.getRaw().data, block=False)
@@ -28,45 +96,49 @@ class Camera:
                 return
 
     def __init__(
-        self, device_info: dai.DeviceInfo, stream_port: int, FPS: int, STREAM_FPS: int
+        self,
+        device_info: dai.DeviceInfo,
+        stream_port: int,
+        TOF_FPS: int,
+        VIDEO_FPS: int,
     ):
-        self.FPS = FPS
-        self.STREAM_FPS = STREAM_FPS
+        self.TOF_FPS = TOF_FPS
+        self.VIDEO_FPS = VIDEO_FPS
 
-        self.camera_ip = device_info.name
-        self.stream_port = stream_port
+        self._camera_ip: str = device_info.name
+        self.stream_port: int = stream_port
         self._create_pipeline()
-        self.device = dai.Device(self.pipeline, device_info)  # Initialize camera
-        self.device.setIrLaserDotProjectorBrightness(0)  # Not using active stereo
-        self.device_info = device_info
+        self._device = dai.Device(self.pipeline, device_info)  # Initialize camera
+        self._device.setIrLaserDotProjectorBrightness(0)  # Not using active stereo
+        self._device_info = device_info
 
-        self.image_queue = self.device.getOutputQueue(
+        self._image_queue: dai.DataOutputQueue = self._device.getOutputQueue(
             name="image", maxSize=10, blocking=False  # pyright: ignore[reportCallIssue]
         )
-        self.depth_queue = self.device.getOutputQueue(
+        self._depth_queue: dai.DataOutputQueue = self._device.getOutputQueue(
             name="depth", maxSize=10, blocking=False  # pyright: ignore[reportCallIssue]
         )
-        self.video_queue = self.device.getOutputQueue(
+        self._video_queue: dai.DataOutputQueue = self._device.getOutputQueue(
             name="video", maxSize=1, blocking=False  # pyright: ignore[reportCallIssue]
         )
-        self.video_queue.addCallback(self.updateVideoQueue)
+        self._video_queue.addCallback(self._updateVideoQueue)
         self.server_stream_queue = Queue(maxsize=1)  # Queue for IPC
-        self.sync_queue = SyncQueue(["image", "depth"])
+        self._sync_queue = SyncQueue(["image", "depth"])
 
-        self.image_frame = None
-        self.depth_frame = None
+        self._image_frame = None
+        self._depth_frame = None
         self.point_cloud = o3d.geometry.PointCloud()
 
         self._load_calibration()
 
-        print("=== Connected to " + self.device_info.name)
+        print("=== Connected to " + self._device_info.name)
 
         # Start streams as seperate processes
         self.streamingServer = Process(
             target=startStreamingServer,
             daemon=True,
-            args=(self.server_stream_queue, STREAM_FPS, stream_port),
-            name=f"{self.camera_ip}-stream"
+            args=(self.server_stream_queue, VIDEO_FPS, stream_port),
+            name=f"{self._camera_ip}-stream",
         )
         self.streamingServer.start()
         print(
@@ -80,8 +152,8 @@ class Camera:
         if self.streamingServer.is_alive():
             self.streamingServer.kill()
             self.streamingServer.join()
-        self.device.close()
-        print("=== Closed " + self.device_info.name)
+        self._device.close()
+        print("=== Closed " + self._device_info.name)
 
     def __del__(self):
         try:
@@ -90,7 +162,7 @@ class Camera:
             return
 
     def _load_calibration(self):
-        path = f"{CALIBRATION_DATA_DIR}/extrinsics_{self.camera_ip}.npz"
+        path = f"{CALIBRATION_DATA_DIR}/extrinsics_{self._camera_ip}.npz"
         try:
             extrinsics = np.load(path)
             self.cam_to_world = extrinsics["cam_to_world"]
@@ -100,7 +172,7 @@ class Camera:
             # raise RuntimeError(f"Could not load calibration data for camera {self.camera_ip} from {path}!")
             print("No extrinsic calibration data for camera")
 
-        calibration = self.device.readCalibration()
+        calibration = self._device.readCalibration()
         intrinsics = calibration.getCameraIntrinsics(
             # TODO: Figure out if this is the correct socket
             dai.CameraBoardSocket.RGB,
@@ -117,7 +189,7 @@ class Camera:
 
         try:
             self.alignment = np.load(
-                f"{CALIBRATION_DATA_DIR}/alignment_{self.camera_ip}.npy"
+                f"{CALIBRATION_DATA_DIR}/alignment_{self._camera_ip}.npy"
             )
         except:
             self.alignment = np.eye(4)  # Default to no alignment correction
@@ -126,131 +198,88 @@ class Camera:
 
     def save_point_cloud_alignment(self):
         np.save(
-            f"{CALIBRATION_DATA_DIR}/alignment_{self.camera_ip}.npy", self.alignment
+            f"{CALIBRATION_DATA_DIR}/alignment_{self._camera_ip}.npy", self.alignment
         )
 
     def _create_pipeline(self):
         pipeline = dai.Pipeline()
 
-        # Video encoder node for frontend stream
-        videoEnc = pipeline.create(dai.node.VideoEncoder)
-        videoEnc.setDefaultProfilePreset(
-            self.FPS, dai.VideoEncoderProperties.Profile.MJPEG
+        # Video encoder (MJPEG) for frontend
+        video_enc = pipeline.create(dai.node.VideoEncoder)
+        video_enc.setDefaultProfilePreset(
+            self.VIDEO_FPS, dai.VideoEncoderProperties.Profile.MJPEG
         )
-        videoEnc.setFrameRate(self.STREAM_FPS)
+        video_enc.setFrameRate(self.VIDEO_FPS)
+
+        # Link video encoder output to XLinkOut("video")
         xout_video = pipeline.createXLinkOut()
         xout_video.setStreamName("video")
-        xout_video.setFpsLimit(self.STREAM_FPS)
-        videoEnc.bitstream.link(xout_video.input)
+        xout_video.setFpsLimit(self.VIDEO_FPS)
+        video_enc.bitstream.link(xout_video.input)
 
-        # Output frontend streaming server node
-        # server = pipeline.create(dai.node.Script)
-        # videoEnc.bitstream.link(server.inputs['frame'])
-        #
-        # server.setProcessor(dai.ProcessorType.LEON_CSS)
-        # server.inputs['frame'].setBlocking(False)
-        # server.inputs['frame'].setQueueSize(1)
-        #
-        # server.setScript(f"""
-        # import time
-        # import socket
-        # from http.server import BaseHTTPRequestHandler, HTTPServer
-        #
-        # class HTTPHandler(BaseHTTPRequestHandler):
-        #     def do_GET(self):
-        #         if self.path == '/rgb':
-        #             try:
-        #                 delay = {1/self.STREAM_FPS}
-        #                 self.send_response(200)
-        #                 self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=--jpgboundary')
-        #                 self.end_headers()
-        #                 while True:
-        #                     frame = node.io['frame'].get()
-        #
-        #                     self.wfile.write("--jpgboundary".encode())
-        #                     self.wfile.write(bytes([13, 10]))
-        #                     self.send_header('Content-type', 'image/jpeg')
-        #                     self.send_header('Content-length', str(len(frame.getData())))
-        #                     self.end_headers()
-        #                     self.wfile.write(frame.getData())
-        #                     self.end_headers()
-        #                     time.sleep(delay)
-        #
-        #             except Exception as ex:
-        #                 node.warn("Client disconnected")
-        #
-        # class ThreadingSimpleServer(HTTPServer):
-        #     pass
-        #
-        # with ThreadingSimpleServer(("", {self.stream_port}), HTTPHandler) as httpd:
-        #     node.warn(f"Serving RGB MJPEG stream at {self.camera_ip + ":" + str(self.stream_port) + "/rgb"}")
-        #     httpd.serve_forever()
-        # """)
+        # Time‐of‐flight / depth pipeline
+        # Create ToF config
+        xin_tof_cfg = pipeline.create(dai.node.XLinkIn)
+        xin_tof_cfg.setStreamName("tofConfig")
 
-        # Time of Flight to depth node
         tof = pipeline.create(dai.node.ToF)
-        tofConfig = tof.initialConfig.get()
-        # TODO: Figure out optimal settings
-        # see ToF node docs on how to reduce/eliminate motion blur.
-        tofConfig.enableOpticalCorrection = True
-        tofConfig.enablePhaseShuffleTemporalFilter = True
-        tofConfig.phaseUnwrappingLevel = 1
-        tofConfig.phaseUnwrapErrorThreshold = 200
-        # tofConfig.enableTemperatureCorrection = False # Not yet supported
-        xinTofConfig = pipeline.create(dai.node.XLinkIn)
-        xinTofConfig.setStreamName("tofConfig")
-        xinTofConfig.out.link(tof.inputConfig)
 
-        tof.initialConfig.set(tofConfig)
+        xin_tof_cfg.out.link(tof.inputConfig)
 
-        # Raw ToF camera node
+        # Apply ToF settings
+        cfg = tof.initialConfig.get()
+        cfg.enableOpticalCorrection = True
+        cfg.enablePhaseShuffleTemporalFilter = True
+        cfg.phaseUnwrappingLevel = 1
+        cfg.phaseUnwrapErrorThreshold = 200
+        tof.initialConfig.set(cfg)
+
+        # Raw ToF camera feed
         cam_tof = pipeline.create(dai.node.Camera)
-        cam_tof.setFps(
-            self.FPS * 2
-        )  # ToF node will produce depth frames at /2 of this rate
         cam_tof.setBoardSocket(dai.CameraBoardSocket.CAM_A)
+        cam_tof.setFps(self.TOF_FPS * 2)  # ToF outputs at half this rate
         cam_tof.raw.link(tof.input)
 
-        # Output depth node
-        xout = pipeline.create(dai.node.XLinkOut)
-        xout.setStreamName("depth")
-        tof.depth.link(xout.input)
+        # ToF to depth output
+        xout_depth = pipeline.create(dai.node.XLinkOut)
+        xout_depth.setStreamName("depth")
+        tof.depth.link(xout_depth.input)
 
-        # RGB cam
-        xout_image = pipeline.createXLinkOut()
-        xout_image.setStreamName("image")
+        # RGB camera
         cam_rgb = pipeline.createColorCamera()
         cam_rgb.setBoardSocket(dai.CameraBoardSocket.CAM_C)
         cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_800_P)
         cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
         cam_rgb.setIspScale(1, 2)
-        cam_rgb.setFps(self.FPS)
+        cam_rgb.setFps(self.TOF_FPS)
         cam_rgb.setVideoSize(640, 400)
-        # cam_rgb.initialControl.setManualFocus(130)
 
+        # RGB image outputs
+        xout_image = pipeline.createXLinkOut()
+        xout_image.setStreamName("image")
         cam_rgb.isp.link(xout_image.input)
-        cam_rgb.video.link(videoEnc.input)
+        cam_rgb.video.link(video_enc.input)
 
         self.image_size = cam_rgb.getIspSize()
         self.pipeline = pipeline
 
     def update(self):
-        for queue in [self.depth_queue, self.image_queue]:
-            new_msgs = queue.tryGetAll()
-            if new_msgs is not None:
-                for new_msg in new_msgs:
-                    self.sync_queue.add(queue.getName(), new_msg)
+        for queue in [self._depth_queue, self._image_queue]:
+            new_frames = queue.tryGetAll()
+            if new_frames is not None:
+                for new_frame in new_frames:
+                    self._sync_queue.add(queue.getName(), new_frame)
 
-        msg_sync = self.sync_queue.get()
-        if msg_sync is None:
+        frame_sync = self._sync_queue.get()
+        if frame_sync is None:
             return
 
-        self.depth_frame = msg_sync["depth"].getFrame()
-        self.image_frame = msg_sync["image"].getCvFrame()
-        rgb = cv2.cvtColor(self.image_frame, cv2.COLOR_BGR2RGB)
-        self.rgbd_to_point_cloud(self.depth_frame, rgb)
+        self._depth_frame = frame_sync["depth"].getFrame()
+        self._image_frame = frame_sync["image"].getCvFrame()
+        rgb = cv2.cvtColor(self._image_frame, cv2.COLOR_BGR2RGB)
+        self._rgbd_to_point_cloud(self._depth_frame, rgb)
 
-    def rgbd_to_point_cloud(
+    def _rgbd_to_point_cloud(
         self, depth_frame, image_frame, downsample=False, remove_noise=False
     ):
         depth_frame = depth_frame[:400, :]  # TODO: Check if this is correct

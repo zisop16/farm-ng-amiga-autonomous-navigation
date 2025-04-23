@@ -2,32 +2,51 @@
 # https://github.com/luxonis/depthai-experiments/blob/master/gen2-multiple-devices/rgbd-pointcloud-fusion/point_cloud_visualizer.py
 
 
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-import open3d as o3d
-from .camera import Camera
-from typing import List
-import numpy as np
 import datetime
-from config import POINTCLOUD_DATA_DIR
+from typing import List
+
+import numpy as np
+import open3d as o3d
+
+from .camera import Camera
 
 
 class PointCloudFusion:
-    def __init__(self, cameras: List[Camera]):
-        self.cameras = cameras
+    """
+    Fuse and manage point clouds from multiple Camera instances.
+
+    Initializes with a list of Camera objects and provides methods to align,
+    reset, save, and get point cloud fusion.
+
+    Args:
+        cameras (List[Camera]):
+            List of Camera instances whose point clouds will be fused.
+
+    Methods:
+        align_point_clouds():
+            Compute and save colored‐ICP alignment of all cameras.
+        reset_alignment():
+            Reset each camera's alignment matrix to identity matrix and save it.
+        save_point_cloud():
+            Update each camera, save individual and fused point cloud files to disk.
+        get_point_cloud() -> o3d.geometry.PointCloud:
+            Update cameras, fuse their point clouds, and return the result.
+    """
+
+    def __init__(self, cameras: List[Camera], POINTCLOUD_DATA_DIR: str):
+        self._cameras = cameras
+        self._POINTCLOUD_DATA_DIR = POINTCLOUD_DATA_DIR
 
     def align_point_clouds(self):
         voxel_radius = [0.04, 0.02, 0.01]
         max_iter = [50, 30, 14]
 
-        master_point_cloud = self.cameras[0].point_cloud  # arbitrary?
+        reference_point_cloud = self._cameras[1].point_cloud  # arbitrary?
 
         # Figure out alignment for each camera relative to master camera
-        for camera in self.cameras[1:]:
+        for camera in self._cameras[1:]:
             for iter, radius in zip(max_iter, voxel_radius):
-                target_down = master_point_cloud.voxel_down_sample(radius)
+                target_down = reference_point_cloud.voxel_down_sample(radius)
                 target_down.estimate_normals(
                     o3d.geometry.KDTreeSearchParamHybrid(radius=radius * 2, max_nn=30)
                 )
@@ -53,27 +72,26 @@ class PointCloudFusion:
             camera.save_point_cloud_alignment()
 
     def reset_alignment(self):
-        for camera in self.cameras:
+        for camera in self._cameras:
             camera.alignment = np.identity(4)
             camera.save_point_cloud_alignment()
 
     def save_point_cloud(self):
-        for camera in self.cameras:
+        for camera in self._cameras:
             camera.update()
             o3d.io.write_point_cloud(
-                f"{POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_{camera.camera_ip}.ply",
-                camera.point_cloud
+                f"{self._POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_{camera._camera_ip}.ply",
+                camera.point_cloud,
             )
 
-        fused_point_cloud = self.cameras[0].point_cloud + self.cameras[1].point_cloud
+        fused_point_cloud = self._cameras[0].point_cloud + self._cameras[1].point_cloud
         o3d.io.write_point_cloud(
-            f"{POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_fused.ply", fused_point_cloud)
+            f"{self._POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_fused.ply",
+            fused_point_cloud,
+        )
 
-    def get_point_cloud(self):
-        for camera in self.cameras:
+    def get_point_cloud(self) -> o3d.geometry.PointCloud:
+        for camera in self._cameras:
             camera.update()
-        fused_point_cloud = self.cameras[0].point_cloud + self.cameras[1].point_cloud
+        fused_point_cloud = self._cameras[0].point_cloud + self._cameras[1].point_cloud
         return fused_point_cloud
-
-    def quit(self):
-        self.running = False

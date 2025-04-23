@@ -1,16 +1,17 @@
+from multiprocessing import Queue
+import signal
 import sys
 import os
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-import signal
-from multiprocessing import Queue
-import depthai as dai
+from queue import Empty
 from time import sleep
-import os
 from typing import List
+
+import depthai as dai
+
 from cameraBackend.camera import Camera
 from cameraBackend.pointCloud import PointCloudFusion
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Last digit of ip identifies the camera
 # 0 = Oak0, etc
@@ -19,25 +20,59 @@ cameraIps = ["10.95.76.11", "10.95.76.12", "10.95.76.13"]
 # STREAM_PORT_BASE + last 2 digits of ip identifies the port for streaming
 STREAM_PORT_BASE = "50"
 
-FPS = 30
-STREAM_FPS = 10
+TOF_FPS = 30
+VIDEO_FPS = 10
 
 
-def startCameras(queue=None):
+def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
+    """
+    Initialize DepthAI cameras, set up point‐cloud fusion, and listen for control
+    commands using a multiprocessing queue.
+
+    This function performs the following steps:
+
+      1. Registers a SIGTERM handler that will gracefully shut down all initialized
+         cameras and exit the process.
+      2. Queries all available DepthAI devices, skipping 10.95.76.10 (Oak0 is not used).
+      3. For each device, creates a unique streaming port based on STREAM_PORT_BASE and
+         the device’s last two IP digits, then creates and starts a Camera instance.
+      4. Instantiates a PointCloudFusion manager for all cameras.
+      5. Enters an infinite loop, polling the queue for command strings.
+
+    Args:
+        queue (multiprocessing.Queue):
+            A queue for receiving control commands. Supported messages are:
+              - "align_point_clouds"
+              - "reset_alignment"
+              - "save_point_cloud_snapshot"
+        POINTCLOUD_DATA_DIR (str):
+            The directory to store point clouds to.
+    """
+
+    # Register handler here so the while loop can be interrupted
+    def handle_sigterm(signum, frame):
+        print("Received SIGTERM, stopping oak manager")
+        for camera in cameras:
+            camera.shutdown()
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+
     device_infos = dai.Device.getAllAvailableDevices()
     device_infos.sort(key=lambda x: x.name, reverse=True)  # Sort by ip
     print(
         f"Found {len(device_infos)} devices: {[device_info.name for device_info in device_infos]}"
     )
     for device_info in device_infos:
-        if device_info.name == "10.95.76.10":
-            continue  # Not using Oak0
+        if device_info.name == "10.95.76.10":  # Not using Oak0
+            continue
         print(f"Initializing camera {device_info.name}")
         port = int(STREAM_PORT_BASE + device_info.name[-2:])
-        cameras.append(Camera(device_info, port, FPS, STREAM_FPS))  # Initialize camera
-        sleep(2)
+        # Initialize camera
+        cameras.append(Camera(device_info, port, TOF_FPS, VIDEO_FPS))
+        sleep(2) # BUG: problem with DepthAI? Can't initialize cameras all at once
 
-    pointCloudFusion = PointCloudFusion(cameras)
+    pointCloudFusion = PointCloudFusion(cameras, POINTCLOUD_DATA_DIR)
 
     if queue != None:
         # Difference between calibration and alignment is that calibration
@@ -48,11 +83,12 @@ def startCameras(queue=None):
             "align_point_clouds": pointCloudFusion.align_point_clouds,
             "reset_alignment": pointCloudFusion.reset_alignment,
             "save_point_cloud_snapshot": pointCloudFusion.save_point_cloud,
-            # "start_point_cloud_continuous": pointCloudFusion.save_point_cloud,
-            # "stop_point_cloud_continuous": pointCloudFusion.save_point_cloud,
         }
         while True:
-            msg = queue.get()  # Blocking
+            try:
+                msg = queue.get(timeout=0.1)  # Blocking
+            except Empty:
+                continue
 
             action = actions.get(msg, None)
             if action:
@@ -62,16 +98,6 @@ def startCameras(queue=None):
                 print(f"Unknown message: {msg}")
 
 
-def handle_sigterm(signum, frame):
-    print("Received SIGTERM, stopping oak manager")
-    for camera in cameras:
-        camera.shutdown()
-    sys.exit(0)
-
-
-signal.signal(signal.SIGTERM, handle_sigterm)
-
-
-if __name__ == "__main__":
-    q = Queue()
-    startCameras(q)
+# if __name__ == "__main__":
+#     q = Queue()
+#     startCameras(q, "")

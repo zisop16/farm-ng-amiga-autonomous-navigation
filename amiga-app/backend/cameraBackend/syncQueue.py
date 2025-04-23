@@ -6,20 +6,61 @@ from functools import reduce
 from collections import deque
 from typing import List
 
-# Queue that keeps depth and rgb frames synchronized for making colorized point clouds
+
 class SyncQueue:
+    """
+    A buffer for syncing frames by sequence number from depth and rgb streams.
+
+    Args:
+        streams (List[str]): List of stream names to track (['depth', 'rgb']).
+        maxlen (int): Maximum number of frames to retain per stream queue (default: 50).
+
+    Attributes:
+        queues (Dict[str, deque]): Maps each stream name to its deque of message records.
+
+    Methods:
+        add(stream, frame):
+            Add a new frame to the buffer for the given stream.
+        get():
+            Find the latest sequence number present in all stream buffers, remove any
+            older frames, and return a dict mapping each stream name to its frame
+            at that sequence. Returns None if there is no common sequence.
+
+    Example:
+        q = SyncQueue(['depth', 'rgb'], maxlen=50)
+        q.add('depth', depth_frame)
+        q.add('rgb', rgb_frame)
+        synced = q.get()
+        if synced:
+            synced_depth_frame = synced['depth']
+            synced_rgb_frame   = synced['rgb']
+    """
+
     def __init__(self, streams: List[str], maxlen=50):
         self.queues = {stream: deque(maxlen=maxlen) for stream in streams}
 
-    def add(self, stream: str, msg):
-        self.queues[stream].append({'msg': msg, 'seq': msg.getSequenceNum()})
+    def add(self, stream: str, frame):
+        self.queues[stream].append({"frame": frame, "seq": frame.getSequenceNum()})
 
     def get(self):
-        seqs = [np.array([msg['seq'] for msg in msgs]) for msgs in self.queues.values()]
+        seqs = [
+            np.array([frame["seq"] for frame in frames])
+            for frames in self.queues.values()
+        ]
+
         matching_seqs = reduce(np.intersect1d, seqs)
         if len(matching_seqs) == 0:
             return None
+
         seq = np.max(matching_seqs)
-        res = {stream: next(msg['msg'] for msg in msgs if msg['seq'] == seq) for stream, msgs in self.queues.items()}
-        self.queues = {stream: deque([msg for msg in msgs if msg['seq'] > seq], maxlen=msgs.maxlen) for stream, msgs in self.queues.items()}
-        return res
+        synced_frames = {
+            stream: next(frame["frame"] for frame in frames if frame["seq"] == seq)
+            for stream, frames in self.queues.items()
+        }
+        self.queues = {
+            stream: deque(
+                [frame for frame in frames if frame["seq"] > seq], maxlen=frames.maxlen
+            )
+            for stream, frames in self.queues.items()
+        }
+        return synced_frames
