@@ -8,7 +8,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import socket
 
 
-
 def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: int):
     print(f"Starting RGB MJPEG stream at 127.0.0.1:{stream_port}...")
     delay = 1 / STREAM_FPS
@@ -16,39 +15,41 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: in
     class HTTPHandler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup()
-            self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            self.wfile = self.request.makefile('wb', buffering=0)
+            # self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            # self.wfile = self.request.makefile('wb', buffering=0)
 
         def do_GET(self):
             if self.path != "/rgb":
                 return self.send_error(404)
 
             self.send_response(200)
-            self.send_header("Content-Type",
-                            "multipart/x-mixed-replace; boundary=--jpgboundary")
-            # disable any caching
+            self.send_header(
+                "Content-Type", "multipart/x-mixed-replace; boundary=jpgboundary"
+            )
             self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.send_header("Pragma", "no-cache")
             self.send_header("Expires", "0")
             self.end_headers()
 
             boundary = b"--jpgboundary\r\n"
-            trailer  = b"\r\n"
+            trailer = b"\r\n"
 
-            while True:
-                frame = server_stream_queue.get()
+            try:
+                while True:
+                    frame = server_stream_queue.get()
+                    header = (
+                        boundary
+                        + b"Content-Type: image/jpeg\r\n"
+                        + f"Content-Length: {len(frame)}\r\n\r\n".encode()
+                    )
+                    self.wfile.write(header)
+                    self.wfile.write(frame)
+                    self.wfile.write(trailer)
+                    self.wfile.flush()
 
-                header = (
-                    boundary +
-                    b"Content-Type: image/jpeg\r\n" +
-                    f"Content-Length: {len(frame)}\r\n\r\n".encode()
-                )
-                self.wfile.write(header)
-                self.wfile.write(frame)
-                self.wfile.write(trailer)
-                self.wfile.flush()
-
-                time.sleep(delay)
+                    time.sleep(delay)
+            except (BrokenPipeError, ConnectionResetError):
+                return
 
             # if self.path == "/rgb":
             #     try:
@@ -80,12 +81,14 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: in
         pass
 
     with ThreadingSimpleServer(("127.0.0.1", stream_port), HTTPHandler) as httpd:
+
         def handle_sigterm(signum, frame):
-            print(f"Received SIGTERM, stopping camera stream server for 127.0.0.1:{stream_port}")
+            print(
+                f"Received SIGTERM, stopping camera stream server for 127.0.0.1:{stream_port}"
+            )
             sys.exit(0)
+
         signal.signal(signal.SIGTERM, handle_sigterm)
 
-        print(
-            f"Serving RGB MJPEG stream at 127.0.0.1:{stream_port}/rgb"
-        )
+        print(f"Serving RGB MJPEG stream at 127.0.0.1:{stream_port}/rgb")
         httpd.serve_forever(poll_interval=1)
