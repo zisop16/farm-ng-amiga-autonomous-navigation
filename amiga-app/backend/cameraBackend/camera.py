@@ -27,9 +27,13 @@ class Camera:
         self.FPS = FPS
         self.STREAM_FPS = STREAM_FPS
 
+        self.camera_ip = device_info.name
+        self.stream_port = stream_port
         self._create_pipeline()
         self.device = dai.Device(self.pipeline, device_info)  # Initialize camera
         self.device.setIrLaserDotProjectorBrightness(0)  # Not using active stereo
+        self.device_info = device_info
+        
         self.image_queue = self.device.getOutputQueue(
             name="image", maxSize=10, blocking=False  # pyright: ignore[reportCallIssue]
         )
@@ -43,10 +47,7 @@ class Camera:
         # self.server_stream_queue = Queue(maxsize=1) # Queue for IPC
         self.sync_queue = SyncQueue(["image", "depth"])
 
-        self.device_info = device_info
-        self.camera_ip = device_info.name
-        self.stream_port = stream_port
-
+        
         self.image_frame = None
         self.depth_frame = None
         self.point_cloud = o3d.geometry.PointCloud()
