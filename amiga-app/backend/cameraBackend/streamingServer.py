@@ -1,14 +1,18 @@
+import depthai as dai
 from multiprocessing import Queue
+
 import signal
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import socket
 
 
 def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: int):
     print(f"Starting RGB MJPEG stream at 127.0.0.1:{stream_port}...")
     delay = 1 / STREAM_FPS
 
-    class MJPEGHandler(BaseHTTPRequestHandler):
+    class HTTPHandler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
         def setup(self):
@@ -21,8 +25,9 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: in
                 return self.send_error(404)
 
             self.send_response(200)
-            self.send_header("Content-Type", 
-                             "multipart/x-mixed-replace; boundary=jpgboundary")
+            self.send_header(
+                "Content-Type", "multipart/x-mixed-replace;boundary=jpgboundary"
+            )
             self.send_header("Connection", "keep-alive")
             self.send_header("Transfer-Encoding", "chunked")
 
@@ -38,17 +43,21 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: in
                 while True:
                     frame = server_stream_queue.get()
                     part = (
-                        boundary +
-                        b"Content-Type: image/jpeg\r\n" +
-                        f"Content-Length: {len(frame)}\r\n\r\n".encode() +
-                        frame +
-                        trailer
+                        boundary
+                        + b"Content-Type: image/jpeg\r\n"
+                        + f"Content-Length: {len(frame)}\r\n\r\n".encode()
+                        + frame
+                        + trailer
                     )
-                    chunk_header = f"{len(part):X}\r\n".encode()
-                    self.wfile.write(chunk_header)
-                    self.wfile.write(part)
-                    self.wfile.write(b"\r\n")
+                    chunk = f"{len(part):X}\r\n".encode() + part + b"\r\n"
+
+                    self.wfile.write(chunk)
                     self.wfile.flush()
+
+                    print(
+                        f"[{time.strftime('%H:%M:%S')}] sent frame, {len(frame)} bytes"
+                    )
+
                     time.sleep(delay)
             except (BrokenPipeError, ConnectionResetError):
                 return
@@ -79,32 +88,18 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: in
             #     except Exception as ex:
             #         print("Client disconnected")
 
-    # class ThreadingSimpleServer(HTTPServer):
-    #     pass
-    #
-    # with ThreadingSimpleServer(("127.0.0.1", stream_port), HTTPHandler) as httpd:
-    #
-    #     def handle_sigterm(signum, frame):
-    #         print(
-    #             f"Received SIGTERM, stopping camera stream server for 127.0.0.1:{stream_port}"
-    #         )
-    #         sys.exit(0)
-    #
-    #     signal.signal(signal.SIGTERM, handle_sigterm)
-    #
-    #     print(f"Serving RGB MJPEG stream at 127.0.0.1:{stream_port}/rgb")
-    #     httpd.serve_forever(poll_interval=1)
-
     class ThreadingSimpleServer(HTTPServer):
         pass
 
-    server = ThreadingSimpleServer(("127.0.0.1", stream_port), MJPEGHandler)
+    with ThreadingSimpleServer(("127.0.0.1", stream_port), HTTPHandler) as httpd:
 
-    def handle_sigterm(signum, frame):
-        print(f"Received SIGTERM, stopping camera stream server on port {stream_port}")
-        server.shutdown()
+        def handle_sigterm(signum, frame):
+            print(
+                f"Received SIGTERM, stopping camera stream server for 127.0.0.1:{stream_port}"
+            )
+            sys.exit(0)
 
-    signal.signal(signal.SIGTERM, handle_sigterm)
+        signal.signal(signal.SIGTERM, handle_sigterm)
 
-    print(f"Serving RGB MJPEG stream at http://127.0.0.1:{stream_port}/rgb")
-    server.serve_forever(poll_interval=1)
+        print(f"Serving RGB MJPEG stream at 127.0.0.1:{stream_port}/rgb")
+        httpd.serve_forever(poll_interval=1)

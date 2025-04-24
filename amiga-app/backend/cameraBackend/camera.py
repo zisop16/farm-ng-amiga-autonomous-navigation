@@ -91,7 +91,7 @@ class Camera:
         new_frame = self._video_queue.tryGet()
         if new_frame is not None:
             try:
-                self.server_stream_queue.put(new_frame.getRaw().data, block=False)
+                self.server_stream_queue.put(new_frame.getRaw().data.tobytes(), block=False)
             except:
                 return
 
