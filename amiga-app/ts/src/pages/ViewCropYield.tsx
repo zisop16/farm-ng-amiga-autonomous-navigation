@@ -1,26 +1,42 @@
-import { Container, Grid, Typography } from "@mui/material";
+// src/pages/ViewCropYield.tsx
+import { Container, Grid, Typography, LinearProgress } from "@mui/material";
 import BackButton from "../components/BackButton";
 import TrackYieldSelect from "../components/TrackYieldSelect";
 import TrackYieldInfo from "../components/TrackYieldInfo";
-import { useState } from "react";
-
-interface TrackRun {
-    date: string,
-    totalYield: number,
-    pathLength: number
-};
-
-const dummyRuns = ["Path Run Name 1", "Path Run Name 2", "Path Run Name 3"];
-const dummyInfo: {[id: string]: TrackRun}  = {
-    "Path Run Name 1": { date: "04/01/25", totalYield: 200, pathLength: 15 },
-    "Path Run Name 2": { date: "04/02/25", totalYield: 180, pathLength: 12 },
-    "Path Run Name 3": { date: "04/03/25", totalYield: 210, pathLength: 17 }
-};
+import { useState, useEffect } from "react";
 
 export default function ViewCropYield() {
+    const [runs, setRuns] = useState<string[]>([]);
     const [selectedRun, setSelectedRun] = useState<string>("");
+    const [yieldEstimate, setYieldEstimate] = useState<number | null>(null);
+    const [loading, setLoading] = useState(false);
 
-    const selectedInfo: TrackRun = dummyInfo[selectedRun];
+
+
+    //line load
+    useEffect(() => {
+        fetch(`${import.meta.env.VITE_API_URL}/line/list`)
+            .then(res => res.json())
+            .then(data => setRuns(data.lines))
+            .catch(err => console.error("failed to fetch lines:", err));
+    }, []);
+
+    // Loading yield when picked
+    useEffect(() => {
+        if (!selectedRun) {
+            setYieldEstimate(null);
+            return;
+        }
+        setLoading(true);
+        fetch(`${import.meta.env.VITE_API_URL}/get_yield/${selectedRun}`)
+            .then(res => res.json())
+            .then(data => setYieldEstimate(data.message))
+            .catch(err => {
+                console.error("failed to fetch yield:", err);
+                setYieldEstimate(null);
+            })
+            .finally(() => setLoading(false));
+    }, [selectedRun]);
 
     return (
         <Container sx={{ mt: 4 }}>
@@ -34,22 +50,22 @@ export default function ViewCropYield() {
 
                 <Grid item xs={12} md={4}>
                     <TrackYieldSelect
-                        runs={dummyRuns}
+                        runs={runs}             
                         selectedRun={selectedRun}
                         onSelectRun={setSelectedRun}
                     />
                 </Grid>
 
                 <Grid item xs={12} md={8}>
-                    {selectedRun ? (
-                        <TrackYieldInfo
-                            date={selectedInfo.date}
-                            totalYield={selectedInfo.totalYield}
-                            pathLength={selectedInfo.pathLength}
-                        />
+                    {loading ? (
+                        <LinearProgress />
+                    ) : selectedRun && yieldEstimate != null ? (
+                        <TrackYieldInfo yieldEstimate={yieldEstimate} />
                     ) : (
                         <Typography variant="body1" mt={2}>
-                            Select a path run to view its yield info.
+                            {selectedRun
+                                ? "Failed to load yield."
+                                : "Select a path run to view its yield info."}
                         </Typography>
                     )}
                 </Grid>
