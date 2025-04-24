@@ -34,7 +34,7 @@ TRACKS_DIR = "./tracks/"
 # Directory where line track JSON files are stored
 LINES_DIR = "./lines/"
 
-POINTCLOUD_DATA_DIR = "./pointcloud_data"
+POINTCLOUD_DATA_DIR = "./pointclouds/"
 
 # Camera configs
 CALIBRATION_DATA_DIR = "./calibration_data"
@@ -44,6 +44,7 @@ MAX_RANGE_MM = 1000
 # Global process handler for Nav Logger
 # gps_logging_process: Optional[subprocess.Popen] = None
 
+linear_regression_parameters = [1, 0]
 
 # Port
 PORT = 8042
