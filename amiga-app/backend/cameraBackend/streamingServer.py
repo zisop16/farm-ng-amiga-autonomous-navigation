@@ -21,46 +21,60 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: in
             # self.wfile = self.request.makefile('wb', buffering=0)
 
         def do_GET(self):
-            if self.path != "/rgb":
-                return self.send_error(404)
+                if self.path == '/rgb':
+                    try:
+                        self.send_response(200)
+                        self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=--jpgboundary')
+                        self.end_headers()
+                        while True:
+                            frame = server_stream_queue.get()
 
-            self.send_response(200)
-            self.send_header(
-                "Content-Type", "multipart/x-mixed-replace;boundary=jpgboundary"
-            )
-            self.send_header("Connection", "keep-alive")
-            self.send_header("Transfer-Encoding", "chunked")
+                            self.wfile.write("--jpgboundary".encode())
+                            self.wfile.write(bytes([13, 10]))
+                            self.send_header('Content-type', 'image/jpeg')
+                            self.send_header('Content-length', str(len(frame.getData())))
+                            self.end_headers()
+                            self.wfile.write(frame.getData())
+                            self.end_headers()
+                            time.sleep(delay)
 
-            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-            self.send_header("Pragma", "no-cache")
-            self.send_header("Expires", "0")
-            self.end_headers()
+                    except Exception as ex:
+                        return
 
-            boundary = b"--jpgboundary\r\n"
-            trailer = b"\r\n"
-
-            try:
-                while True:
-                    frame = server_stream_queue.get()
-                    part = (
-                        boundary
-                        + b"Content-Type: image/jpeg\r\n"
-                        + f"Content-Length: {len(frame)}\r\n\r\n".encode()
-                        + frame
-                        + trailer
-                    )
-                    chunk = f"{len(part):X}\r\n".encode() + part + b"\r\n"
-
-                    self.wfile.write(chunk)
-                    self.wfile.flush()
-
-                    print(
-                        f"[{time.strftime('%H:%M:%S')}] sent frame, {len(frame)} bytes"
-                    )
-
-                    time.sleep(delay)
-            except (BrokenPipeError, ConnectionResetError):
-                return
+        # def do_GET(self):
+        #     if self.path != "/rgb":
+        #         return self.send_error(404)
+        #
+        #     self.send_response(200)
+        #     self.send_header("Content-Type", 
+        #                      "multipart/x-mixed-replace; boundary=jpgboundary")
+        #     self.send_header("Connection", "keep-alive")
+        #     self.send_header("Transfer-Encoding", "chunked")
+        #
+        #     self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        #     self.send_header("Pragma", "no-cache")
+        #     self.send_header("Expires", "0")
+        #     self.end_headers()
+        #
+        #     boundary = b"--jpgboundary\r\n"
+        #     trailer = b"\r\n"
+        #
+        #     try:
+        #         while True:
+        #             frame = server_stream_queue.get()
+        #             header = (
+        #                 boundary
+        #                 + b"Content-Type: image/jpeg\r\n"
+        #                 + f"Content-Length: {len(frame)}\r\n\r\n".encode()
+        #             )
+        #             self.wfile.write(header)
+        #             self.wfile.write(frame)
+        #             self.wfile.write(trailer)
+        #             self.wfile.flush()
+        #
+        #             time.sleep(delay)
+        #     except (BrokenPipeError, ConnectionResetError):
+        #         return
 
             # if self.path == "/rgb":
             #     try:
