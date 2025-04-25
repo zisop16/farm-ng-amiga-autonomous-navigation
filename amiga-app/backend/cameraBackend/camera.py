@@ -25,9 +25,9 @@ class Camera:
 
     On initialization, builds and starts a DepthAI pipeline with:
 
-      - A VideoEncoder node to produce MJPEG frames at VIDEO_FPS, forwarded to a
+      - A VideoEncoder node to produce MJPEG frames, forwarded to a
         background streaming server process on localhost at the given TCP port.
-      - A ToF node configured to emit depth frames at TOF_FPS.
+      - A ToF node configured to emit depth frames.
       - An RGB camera producing ISP frames at TOF_FPS for color data.
       - Queues to receive video, image, and depth frames from the camera.
 
@@ -39,18 +39,18 @@ class Camera:
             DepthAI object containing information about the camera.
         stream_port (int):
             TCP port on which to serve the MJPEG video stream. Has to be unique.
-        TOF_FPS (int):
-            Frames per second for the time-of-flight sensor.
+        PIPELINE_FPS (int):
+            Frames per second for the pipeline.
         VIDEO_FPS (int):
-            Frames per second for the MJPEG video encoder.
+            Frames per second for the MJPEG stream.
 
     Attributes:
         _camera_ip (str):
             Network address of the camera. Only for identification.
         stream_port (int):
             Port for the MJPEG HTTP server.
-        TOF_FPS (int):
-            Depth frame rate.
+        PIPELINE_FPS (int):
+            Pipeline frame rate.
         VIDEO_FPS (int):
             Video frame rate.
         _pipeline (dai.Pipeline):
@@ -87,22 +87,20 @@ class Camera:
             Gracefully terminates the streaming server process and closes the device.
     """
 
-    def _updateVideoQueue(self):
-        new_frame = self._video_queue.tryGet()
-        if new_frame is not None:
-            try:
-                self.server_stream_queue.put(new_frame.getRaw().data.tobytes(), block=False)
-            except:
-                return
+    def _updateVideoQueue(self, frame: dai.Buffer):
+        # Check if full first before manipulating data
+        if not self.server_stream_queue.full():
+            jpeg_bytes = frame.getData().tobytes()
+            self.server_stream_queue.put(jpeg_bytes, block=False)
 
     def __init__(
         self,
         device_info: dai.DeviceInfo,
         stream_port: int,
-        TOF_FPS: int,
+        PIPELINE_FPS: int,
         VIDEO_FPS: int,
     ):
-        self.TOF_FPS = TOF_FPS
+        self.PIPELINE_FPS = PIPELINE_FPS
         self.VIDEO_FPS = VIDEO_FPS
 
         self._camera_ip: str = device_info.name
@@ -202,9 +200,9 @@ class Camera:
         # Video encoder (MJPEG) for frontend
         video_enc = pipeline.create(dai.node.VideoEncoder)
         video_enc.setDefaultProfilePreset(
-            self.VIDEO_FPS, dai.VideoEncoderProperties.Profile.MJPEG
+            self.PIPELINE_FPS, dai.VideoEncoderProperties.Profile.MJPEG
         )
-        video_enc.setFrameRate(self.VIDEO_FPS)
+        video_enc.setFrameRate(self.PIPELINE_FPS)
 
         # Link video encoder output to XLinkOut("video")
         xout_video = pipeline.createXLinkOut()
@@ -234,7 +232,7 @@ class Camera:
         # Raw ToF camera feed
         cam_tof = pipeline.create(dai.node.Camera)
         cam_tof.setBoardSocket(dai.CameraBoardSocket.CAM_A)
-        cam_tof.setFps(self.TOF_FPS * 2)  # ToF outputs at half this rate
+        cam_tof.setFps(self.PIPELINE_FPS * 2)  # ToF outputs at half this rate
         cam_tof.raw.link(tof.input)
 
         # ToF to depth output
@@ -248,7 +246,7 @@ class Camera:
         cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_800_P)
         cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
         cam_rgb.setIspScale(1, 2)
-        cam_rgb.setFps(self.TOF_FPS)
+        cam_rgb.setFps(self.PIPELINE_FPS)
         cam_rgb.setVideoSize(640, 400)
 
         # RGB image outputs
