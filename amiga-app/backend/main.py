@@ -22,30 +22,37 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 os.chdir(f"{Path(__file__).parent}/..")
 
 import asyncio
+from farm_ng.core.event_client_manager import EventClient
+from fastapi import WebSocket, WebSocketDisconnect
+from farm_ng.core.event_service_pb2 import SubscribeRequest
+from farm_ng.core.uri_pb2 import Uri
+from google.protobuf.json_format import MessageToJson
 
 
 import uvicorn
 from farm_ng.core.event_client_manager import EventClientSubscriptionManager
 from farm_ng.core.event_service_pb2 import EventServiceConfigList
 from farm_ng.core.events_file_reader import proto_from_json_file
+from farm_ng_core_pybind import Pose3F64
+
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from pydantic import BaseModel
 
 from multiprocessing import Process, Queue
 
 from config import *
 
-from routers import tracks, record, follow
+from routers import tracks, record, follow, linefollow
 
 from cameraBackend.oakManager import startCameras
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global event_manager
     print("Initializing App...")
 
     # config with all the configs
@@ -63,14 +70,22 @@ async def lifespan(app: FastAPI):
     event_manager = EventClientSubscriptionManager(config_list=service_config_list)
 
     queue = Queue()
-    oak_manager = Process(target=startCameras, args=(queue,))
-    oak_manager.start()
+
+    no_cameras = True
+    if no_cameras:
+        oak_manager = None
+    else:
+        oak_manager = Process(target=startCameras, args=(queue,))
+        oak_manager.start()
     
     asyncio.create_task(event_manager.update_subscriptions())
 
     yield {
         "event_manager": event_manager,
-        "oak_manager": oak_manager
+        "oak_manager": oak_manager,
+        # Yield dict cannot be changed directly, but objects inside it can
+        # So we use a vars item for all our non constant variables
+        "vars": StateVars()
     } 
 
     print("Shutting down...")
@@ -89,6 +104,46 @@ app.add_middleware(
 app.include_router(tracks.router)
 app.include_router(record.router)
 app.include_router(follow.router)
+app.include_router(linefollow.router)
+
+@app.websocket("/filter_data")
+async def filter_data(
+    websocket: WebSocket,
+    every_n: int = 3
+):
+    """Coroutine to subscribe to filter state service via websocket.
+    
+    Args:
+        websocket (WebSocket): the websocket connection
+        every_n (int, optional): the frequency to receive events.
+    
+    Usage:
+        ws = new WebSocket(`${API_URL}/filter_data`)
+    """
+    event_manager = websocket.state.event_manager
+    full_service_name = "filter"
+    client: EventClient = (event_manager.clients[full_service_name])
+
+    await websocket.accept()
+
+    disconnected = False
+
+    async for _, msg in client.subscribe(
+        SubscribeRequest(
+            uri=Uri(path=f"/state", query=f"service_name={full_service_name}"),
+            every_n=every_n,
+        ),
+        decode=True,
+    ):
+        try:
+            await websocket.send_json(MessageToJson(msg))
+        except WebSocketDisconnect as e:
+            disconnected = True
+            break
+
+    if not disconnected:
+        await websocket.close()
+    
 
 if __name__ == "__main__":
 

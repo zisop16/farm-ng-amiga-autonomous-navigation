@@ -26,8 +26,7 @@ class Camera:
         self._create_pipeline()
         self.device = dai.Device(self.pipeline, self.device_info)
 
-        # self.device.setIrLaserDotProjectorBrightness(1200)
-        self.device.setIrLaserDotProjectorBrightness(0)
+        self.device.setIrLaserDotProjectorBrightness(1200)
 
         self.image_queue = self.device.getOutputQueue(name="image", maxSize=10, blocking=False)
         self.depth_queue = self.device.getOutputQueue(name="depth", maxSize=10, blocking=False)
@@ -138,8 +137,8 @@ class Camera:
         # see ToF node docs on how to reduce/eliminate motion blur.
         tofConfig.enableOpticalCorrection = True
         tofConfig.enablePhaseShuffleTemporalFilter = True
-        tofConfig.phaseUnwrappingLevel = 4
-        tofConfig.phaseUnwrapErrorThreshold = 300
+        tofConfig.phaseUnwrappingLevel = 1
+        tofConfig.phaseUnwrapErrorThreshold = 200
         # tofConfig.enableTemperatureCorrection = False # Not yet supported
         xinTofConfig = pipeline.create(dai.node.XLinkIn)
         xinTofConfig.setStreamName("tofConfig")
@@ -150,7 +149,7 @@ class Camera:
 
         # Raw ToF camera node
         cam_tof = pipeline.create(dai.node.Camera)
-        cam_tof.setFps(10) # ToF node will produce depth frames at /2 of this rate
+        cam_tof.setFps(60) # ToF node will produce depth frames at /2 of this rate
         cam_tof.setBoardSocket(dai.CameraBoardSocket.CAM_A)
         cam_tof.raw.link(tof.input)
 
@@ -170,7 +169,7 @@ class Camera:
         cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
         cam_rgb.setIspScale(1, 2)
         cam_rgb.setFps(FPS)
-        #cam_rgb.setVideoSize(640, 400)
+        cam_rgb.setVideoSize(640, 400)
         # cam_rgb.initialControl.setManualFocus(130)
 
         cam_rgb.isp.link(xout_image.input)
@@ -196,6 +195,7 @@ class Camera:
         self.rgbd_to_point_cloud(self.depth_frame, rgb)
 
     def rgbd_to_point_cloud(self, depth_frame, image_frame, downsample=False, remove_noise=False):
+        depth_frame = depth_frame[:400, :] # TODO: Check if this is correct
         rgb_o3d = o3d.geometry.Image(image_frame)
         df = np.copy(depth_frame).astype(np.float32)
         # df -= 20

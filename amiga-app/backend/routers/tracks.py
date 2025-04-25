@@ -17,9 +17,6 @@ async def list_tracks():
 
     track_names = [f[:-5] for f in os.listdir(TRACKS_DIR) if f.endswith(".json")]
 
-    if track_names == []:
-        return {"error": "No existing tracks."}
-
     return {"tracks": track_names}
 
 @router.post("/delete_track/{track_name}")
