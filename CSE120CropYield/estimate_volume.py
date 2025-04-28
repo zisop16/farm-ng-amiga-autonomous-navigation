@@ -26,8 +26,10 @@ def estimate_volume(point_cloud: o3d.geometry.PointCloud) -> tuple[float, float,
     
 
     # Bounding box parameters
-    z_lower = point_cloud[round(num_points * .25), 2]
-    z_upper = point_cloud[round(num_points * .95), 2]
+    # z_lower = point_cloud[round(num_points * .25), 2]
+    # z_upper = point_cloud[round(num_points * .95), 2]
+    z_lower = point_cloud[0, 2]
+    z_upper = point_cloud[-1, 2]
     x_lower = -250
     x_upper = 450
     y_lower = -270
@@ -70,7 +72,7 @@ if __name__ == '__main__':
         volume_estimate, percent_size_change, point_cloud = estimate_volume(point_cloud)
         volume_estimates.append(volume_estimate)
 
-        visual = False
+        visual = True
         
         if visual:
             voxel_size = 2

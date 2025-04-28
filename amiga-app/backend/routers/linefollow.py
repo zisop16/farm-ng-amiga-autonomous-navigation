@@ -221,11 +221,11 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
     await track_client.request_reply("/start", Empty())
     vars.following_track = True
 
-    background_tasks.add_task(handle_image_capture, vars, track_client, row_indices)
+    background_tasks.add_task(handle_image_capture, vars, track_client, line_name, row_indices)
 
     return {"message": "Line follow started"}
 
-async def handle_image_capture(vars: StateVars, client: EventClient, row_indices: list[tuple[int, int]]):
+async def handle_image_capture(vars: StateVars, client: EventClient, line_name: str, row_indices: list[tuple[int, int]]):
     """_summary_
 
     Args:
@@ -233,13 +233,14 @@ async def handle_image_capture(vars: StateVars, client: EventClient, row_indices
         vars (StateVars):
         row_indices (list[tuple[int, int]]):
     """
-    current_row_segment = -1
+    current_row_number = -1
     last_image_capture = 0
     initial_distance_offset = .8
     distance_between_images = 1.5
 
     vars.track_follow_id += 1
     track_follow_id = vars.track_follow_id
+    capture_number = 0
 
     async for _, message in client.subscribe(
         SubscribeRequest(
@@ -258,30 +259,32 @@ async def handle_image_capture(vars: StateVars, client: EventClient, row_indices
         else:
             progress: TrackFollowerProgress = state.progress
             goal_index = progress.goal_waypoint_index
-            segment = 0
+            row_number = 0
             for ind1, ind2 in row_indices:
                 # We go from [ind1 -> ind2) on each row
                 if goal_index >= ind1 and goal_index < ind2:
                     break
-                segment += 1
-            walking_row = segment != len(row_indices)
+                row_number += 1
+            walking_row = row_number != len(row_indices)
             if walking_row:
                 dist_remaining = progress.distance_remaining
-                if current_row_segment != segment:
+                if current_row_number != row_number:
                     # We have started a new segment
-                    current_row_segment = segment
-                    print(f"Started row segment: {current_row_segment}")
+                    current_row_number = row_number
+                    print(f"Started row segment: {current_row_number}")
                     last_image_capture = dist_remaining - initial_distance_offset
+                    capture_number = 0
                 else:
                     distance_travelled = last_image_capture - dist_remaining
                     if distance_travelled > distance_between_images:
                         print(f"Travelled a distance of {distance_travelled} meters. Capturing image")
                         last_image_capture = dist_remaining
                         await client.request_reply("/pause", Empty())
-                        await capture_image()
+                        await capture_image(line_name, row_number, capture_number)
+                        capture_number += 1
                         await client.request_reply("/resume", Empty())
 
-async def capture_image():
+async def capture_image(line_name: str, row_number: int, capture_number: int):
     # Dummy function for image capture
     await asyncio.sleep(3)
 
