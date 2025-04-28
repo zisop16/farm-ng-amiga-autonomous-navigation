@@ -259,18 +259,18 @@ async def handle_image_capture(vars: StateVars, client: EventClient, line_name: 
         else:
             progress: TrackFollowerProgress = state.progress
             goal_index = progress.goal_waypoint_index
-            row_number = 0
+            calculated_row_number = 0
             for ind1, ind2 in row_indices:
                 # We go from [ind1 -> ind2) on each row
                 if goal_index >= ind1 and goal_index < ind2:
                     break
-                row_number += 1
-            walking_row = row_number != len(row_indices)
+                calculated_row_number += 1
+            walking_row = calculated_row_number != len(row_indices)
             if walking_row:
                 dist_remaining = progress.distance_remaining
-                if current_row_number != row_number:
+                if current_row_number != calculated_row_number:
                     # We have started a new segment
-                    current_row_number = row_number
+                    current_row_number = calculated_row_number
                     print(f"Started row segment: {current_row_number}")
                     last_image_capture = dist_remaining - initial_distance_offset
                     capture_number = 0
@@ -280,7 +280,7 @@ async def handle_image_capture(vars: StateVars, client: EventClient, line_name: 
                         print(f"Travelled a distance of {distance_travelled} meters. Capturing image")
                         last_image_capture = dist_remaining
                         await client.request_reply("/pause", Empty())
-                        await capture_image(line_name, row_number, capture_number)
+                        await capture_image(line_name, current_row_number, capture_number)
                         capture_number += 1
                         await client.request_reply("/resume", Empty())
 
