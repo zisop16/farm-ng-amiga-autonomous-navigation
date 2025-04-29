@@ -24,15 +24,16 @@ def format_track(track_waypoints: list[Pose3F64]) -> Track:
     """
     return Track(waypoints=[pose.to_proto() for pose in track_waypoints])
 
-def walk_towards(current_pose: Pose3F64, target_position: np.array, goal_counter: int) -> list[Pose3F64]:
+def walk_towards(current_pose: Pose3F64, target_position: np.array, goal_counter: int) -> tuple[list[Pose3F64], int]:
     """_summary_
     Given the robot's current pose, outputs the list of poses the robot must use in their track to walk towards the target position
+    Also outputs the index of the waypoint where the robot begins walking forward
     Args:
         current_pose (Pose3F64): Current position / rotation of robot
         position (np.array): Target position
 
     Returns:
-        list[Pose3F64]
+        tuple[list[Pose3F64], int]
     """
     current_position = np.array(current_pose.translation[:2])
     rotation_matrix = current_pose.rotation.rotation_matrix
@@ -49,10 +50,14 @@ def walk_towards(current_pose: Pose3F64, target_position: np.array, goal_counter
     angle_diff = target_angle - current_angle
 
     turn = create_turn_segment(current_pose, angle_diff, f"goal{goal_counter}")
+    print(f"Goal {goal_counter}: Walking from {current_position} to {target_position}")
+    print(f"Rotating {angle_diff} radians")
     if turn != []:
         current_pose = turn[-1]
+    cutoff = len(turn)
     turn.extend(create_straight_segment(current_pose, distance, f"goal{goal_counter + 1}"))
-    return turn
+    print(f"Walking forward {distance} meters")
+    return turn, cutoff
 
 
 def create_straight_segment(
@@ -117,9 +122,7 @@ def create_turn_segment(
     angle = angle % (2*np.pi)
     # Don't rotate 270deg when we can rotate -90deg
     if angle > np.pi:
-        angle = 2*np.pi - angle
-    if angle < -np.pi:
-        angle = 2*np.pi + angle
+        angle = -2*np.pi + angle
     # Create a container to store the track segment waypoints
     segment_poses: list[Pose3F64] = [previous_pose]
 
@@ -130,7 +133,8 @@ def create_turn_segment(
 
     while abs(remaining_angle) > 0:
         # Compute the angle of the next segment
-        segment_angle: float = np.copysign(min(np.abs(remaining_angle), spacing), angle)
+        segment_magnitude = min(np.abs(remaining_angle), spacing)
+        segment_angle: float = np.copysign(segment_magnitude, angle)
 
         # Compute the next pose
         turn_segment: Pose3F64 = Pose3F64(

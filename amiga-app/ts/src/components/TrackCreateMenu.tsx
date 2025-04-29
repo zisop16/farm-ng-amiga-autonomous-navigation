@@ -1,5 +1,8 @@
-import { LinearProgress, Typography, TextField, Button, Grid2, Box } from "@mui/material";
-import React, { useState } from "react";
+import { LinearProgress, Typography, TextField, Button, Grid2, Box, Modal } from "@mui/material";
+import React, { useState, useRef } from "react";
+import Keyboard from "react-simple-keyboard";
+import "react-simple-keyboard/build/css/index.css";
+import { useKeyboard } from "../context/KeyboardContext";
 
 export enum TrackType {
     line,
@@ -20,7 +23,11 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
     const [trackCreationError, setTrackCreationError] = useState("");
     const [calibratingTurn, setCalibratingTurn] = useState(false);
     const [lineCreated, setLineCreated] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
 
+    // Keyboard
+    const { openKeyboard } = useKeyboard();
+    
     /*
     The add new track button should not add tracks directly into local storage;
     We have to make a call to backend API for the farmer to guide robot and create it, then it is added to backend and fetched
@@ -179,6 +186,7 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
 
     
     return (
+        <>
         <Box sx={boxStyle}>
             <Grid2 container rowSpacing={2} spacing={3} style={{display: "flex", alignItems: "center"}}>
                 <Grid2 size={4}>
@@ -198,14 +206,16 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                 </Grid2>
                 <Grid2 size={8}>
                     <TextField
+                        inputRef={inputRef}
                         value={newTrackName}
                         onChange={(e) => setNewTrackName(e.target.value)}
+                        onFocus={() => openKeyboard(setNewTrackName, newTrackName, inputRef)}
                         placeholder="Name of your track"
                         disabled={props.trackBeingCreated}
                         error={trackCreationError !== ""}
                         helperText={trackCreationError}
                         style={{ width: "250px"}}
-                    />
+                    />         
                 </Grid2>
                 <Grid2 size={6}>
                     <Button variant="contained" disabled={props.trackBeingCreated} onClick={createTrack} style={buttonStyle}>
@@ -219,8 +229,8 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                 </Grid2>
                 { (trackType === TrackType.line) ? lineTrackButtons() : <></>}
             </Grid2>
-            
         </Box>
+        </>
     );
 }
 

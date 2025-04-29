@@ -48,6 +48,9 @@ export default function TrackSelect() {
                 });
                 fetch(STOP_LINE, {method: "POST"});
             }
+        } else if (selectedButton === "run") {
+            const STOP_RUN = `${import.meta.env.VITE_API_URL}/follow/stop`;
+            fetch(STOP_RUN, {method: "POST"});
         }
         setSelectedButton(newButton);
     }
@@ -56,6 +59,9 @@ export default function TrackSelect() {
         if (!tracksUpdate) {return;}
         const trackListEndpoint = `${import.meta.env.VITE_API_URL}/list_tracks`;
         const lineListEndpoint = `${import.meta.env.VITE_API_URL}/line/list`;
+        // hi
+        console.log("hi");
+        
         fetch(trackListEndpoint, { method: "GET" })
         .then((response) => response.json())
         .then((result) => {

@@ -4,8 +4,9 @@ import { Box, Button, Grid2, IconButton, List, ListItem, ListItemButton, ListIte
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { TrackType } from "./TrackCreateMenu";
+import { useKeyboard } from "../context/KeyboardContext";
 
 interface TrackSelectProps {
     selectedTrack: string,
@@ -25,6 +26,10 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
     const [duplicateNameError, setDuplicateNameError] = useState("");
     const [pageNumber, setPageNumber] = useState(1);
     const [displayedType, setDisplayedType] = useState(props.selectedType);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Keyboard
+    const { openKeyboard } = useKeyboard();
 
     function removeTrack(tName: string): void {
         let delete_url: string;
@@ -181,13 +186,15 @@ export default function TrackSelectMenu(props: TrackSelectProps) {
             >
                 {editingTrack === tName ? (
                     <TextField
+                        inputRef={inputRef}
                         value={editedName}
                         onChange={(e) => {
                             setEditedName(e.target.value);
                             setDuplicateNameError("");
                         }}
                         onKeyDown={(e) => e.key === "Enter" && saveTrackName(tName)}
-                        onBlur={() => saveTrackName(tName)}
+                        onFocus={() => openKeyboard(setEditedName, editedName, inputRef)}
+                        //onBlur={() => saveTrackName(tName)}
                         error={duplicateNameError !== ""}
                         helperText={duplicateNameError ? `Track name: ${duplicateNameError} already exists.` : ""}
                         autoFocus
