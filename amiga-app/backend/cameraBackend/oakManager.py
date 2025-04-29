@@ -20,7 +20,7 @@ cameraIps = ["10.95.76.11", "10.95.76.12", "10.95.76.13"]
 # STREAM_PORT_BASE + last 2 digits of ip identifies the port for streaming
 STREAM_PORT_BASE = "50"
 
-TOF_FPS = 30
+PIPELINE_FPS = 30
 VIDEO_FPS = 10
 
 
@@ -40,11 +40,12 @@ def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
       5. Enters an infinite loop, polling the queue for command strings.
 
     Args:
+        TODO: Update queue message parameters
         queue (multiprocessing.Queue):
             A queue for receiving control commands. Supported messages are:
               - "align_point_clouds"
               - "reset_alignment"
-              - "save_point_cloud_snapshot"
+              - "save_point_cloud"
         POINTCLOUD_DATA_DIR (str):
             The directory to store point clouds to.
     """
@@ -69,7 +70,7 @@ def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
         print(f"Initializing camera {device_info.name}")
         port = int(STREAM_PORT_BASE + device_info.name[-2:])
         # Initialize camera
-        cameras.append(Camera(device_info, port, TOF_FPS, VIDEO_FPS))
+        cameras.append(Camera(device_info, port, PIPELINE_FPS, VIDEO_FPS))
         sleep(2)  # BUG: problem with DepthAI? Can't initialize cameras all at once
 
     pointCloudFusion = PointCloudFusion(cameras, POINTCLOUD_DATA_DIR)
@@ -79,23 +80,25 @@ def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
         # defines initial camera positioning and alignment refines the
         # positioning. Calibration requires calibration pattern and is
         # mandatory. Alignment is optional and can be done on the fly.
-        actions = {
-            "align_point_clouds": pointCloudFusion.align_point_clouds,
-            "reset_alignment": pointCloudFusion.reset_alignment,
-            "save_point_cloud_snapshot": pointCloudFusion.save_point_cloud,
-        }
         while True:
             try:
                 msg = queue.get(timeout=0.1)  # Blocking
+                action = msg.get("action", "No action")
+                if action == "align_point_clouds":
+                    pointCloudFusion.align_point_clouds()
+                elif action == "reset_alignment":
+                    pointCloudFusion.reset_alignment()
+                elif action == "save_point_cloud":
+                    line_name = msg.get("line_name", "X")
+                    row_number = msg.get("row_number", "X")
+                    capture_number = msg.get("capture_number", "X")
+                    pointCloudFusion.save_point_cloud()
+                else:
+                    print(f"Unknown message: {msg}")
+                    continue
+
             except Empty:
                 continue
-
-            action = actions.get(msg, None)
-            if action:
-                action()
-                continue
-            else:
-                print(f"Unknown message: {msg}")
 
 
 # if __name__ == "__main__":

@@ -1,9 +1,10 @@
 import { LinearProgress, Typography, TextField, Button, Grid2, Box, Stack, Paper } from "@mui/material";
 import { styled } from '@mui/material/styles';
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Vec2, FromPolar, twoDigits } from "../utils/Vec2";
 import arrow from "../icons/direction-arrow.png"
 import { TrackType } from "./TrackCreateMenu";
+import { useKeyboard } from "../context/KeyboardContext";
 
 interface TrackRunProps {
     selectedTrack: string,
@@ -20,18 +21,31 @@ export default function TrackRunMenu(props: TrackRunProps) {
 
     const [currentLocation, setCurrentLocation] = useState(Vec2.Zero);
     const [startPosition, setStartPosition] = useState(Vec2.Zero);
-    const [rotationAngle, updateRotationAngle] = useState(0);
+    const [rotationAngle, updateRotationAngle] = useState(1);
     const [followingTrack, setFollowingTrack] = useState(false);
     const [trackLoaded, setTrackLoaded] = useState(false);
+
+    const [numRows, setNumRows] = useState(1);
+    const [firstTurnRight, setFirstTurnRight] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Keyboard
+    const { openKeyboard } = useKeyboard();
+
+    const updateNumRows = (input: string) => {
+        let val = toPosInt(input);
+        if (val != false) {
+            setNumRows(val);
+        }
+    };
 
     useEffect(() => {
         // go to ws:// instead of http://
         const socket_URL = `ws://${import.meta.env.VITE_API_URL.substring(7)}/filter_data`;
-        console.log(socket_URL);
-        const detailSocket = new WebSocket(socket_URL, 'echo-protocol');
+        const detailSocket = new WebSocket(socket_URL);
 
         detailSocket.onopen = (event) => {
-            console.log('Detail WebSocket connection opened:', event);
+            // console.log('Detail WebSocket connection opened:', event);
         };
 
         detailSocket.onmessage = (event) => {
@@ -43,17 +57,15 @@ export default function TrackRunMenu(props: TrackRunProps) {
             if (zAxis < 0) {
                 zAxisRotation *= -1;
             }
-            // console.log(`${zAxis}, ${zAxisRotation * 180/Math.PI}`);
             updateRotationAngle(zAxisRotation);
-            // console.log(zAxisRotation);
         }
 
         detailSocket.onerror = (error) => {
             console.log(error);
         };
 
-        detailSocket.onclose = (event) => {
-            console.log('Detail WebSocket connection closed:', event);
+        detailSocket.onclose = (_event) => {
+            // console.log('Detail WebSocket connection closed:', event);
         };
         return () => {detailSocket.close()};
     }, []);
@@ -84,7 +96,6 @@ export default function TrackRunMenu(props: TrackRunProps) {
 
     function getDist() {
         const diff: Vec2 = currentLocation.Sub(startPosition);
-        // console.log(currentLocation.toString(), startPosition.toString());
         return diff.Mag();
     }
 
@@ -101,82 +112,153 @@ export default function TrackRunMenu(props: TrackRunProps) {
         return (-targetAngle + currAngle) - 90;
     }
 
-function followTrack() {
-    let followTrackEndpoint;
-    let requestData;
-    if (props.selectedType === TrackType.standard) {
-        followTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/start/${props.selectedTrack}`;
-        requestData = {method: "POST"};
-    }  else {
-        followTrackEndpoint = `${import.meta.env.VITE_API_URL}/line/follow/${props.selectedTrack}`;
-        requestData = {
+    function followTrack() {
+        const stateEndpoint = `${import.meta.env.VITE_API_URL}/follow/state`;
+
+        function makeFollowTrackRequest() {
+            let followTrackEndpoint;
+            let requestData;
+            if (props.selectedType === TrackType.standard) {
+                followTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/start/${props.selectedTrack}`;
+                requestData = {method: "POST"};
+            }  else {
+                followTrackEndpoint = `${import.meta.env.VITE_API_URL}/line/follow/${props.selectedTrack}`;
+                requestData = {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        "num_rows": numRows,
+                        "first_turn_right": firstTurnRight
+                    })
+                };
+            }
+            fetch(followTrackEndpoint, requestData)
+            .then((response) => response.json())
+            .then((result) => {
+                if (!result.error) {
+                    setTrackLoaded(true);
+                    setFollowingTrack(true);
+                } else {
+                    console.error("Failed to follow track:", result.error);
+                }
+            });
+        }
+
+        fetch(stateEndpoint, {method: "GET"})
+        .then((response) => response.json())
+        .then((result) => {
+            if (result.controllable) {
+                makeFollowTrackRequest();
+            } else {
+                window.alert("Make sure the robot's filter service has converged\nAnd that the robot is set to auto mode");
+            }
+        });
+
+        
+        return;
+    }
+
+    function pauseTrack() {
+        const pauseTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/pause`;
+        fetch(pauseTrackEndpoint, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                "num_rows": 5,
-                "first_turn_right": false
-            })
-        };
-    }
-    fetch(followTrackEndpoint, requestData)
-    .then((response) => response.json())
-    .then((result) => {
-        if (result.success) {
-            console.log("Following track:", result.message);
-            setFollowingTrack(true);
-        } else {
-            console.error("Failed to follow track:", result.error);
-        }
-    });
-}
-
-function pauseTrack() {
-    const pauseTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/pause`;
-    fetch(pauseTrackEndpoint, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        }
-    })
-        .then((response) => response.json())
-        .then((result) => {
-            if (result.success) {
-                console.log("Paused track:", result.message);
-                setFollowingTrack(false);
-            } else {
-                console.error("Failed to pause track:", result.error);
             }
         })
-        .catch((err) => {
-            console.error("Error pausing track:", err);
-        });
-}
+            .then((response) => response.json())
+            .then((result) => {
+                if (!result.error) {
+                    setFollowingTrack(false);
+                } else {
+                    console.error("Failed to pause track:", result.error);
+                }
+            })
+            .catch((err) => {
+                console.error("Error pausing track:", err);
+            });
+    }
 
-function resumeTrack() {
-    const resumeTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/resume`;
-    fetch(resumeTrackEndpoint, {
-        method: "POST",
-    })
+    function resumeTrack() {
+        const resumeTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/resume`;
+        fetch(resumeTrackEndpoint, {
+            method: "POST",
+        })
+            .then((response) => response.json())
+            .then((_result) => {
+                setFollowingTrack(true);
+            });
+    }
+
+    function endTrack() {
+        const endTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/stop`;
+        fetch(endTrackEndpoint, {method: "POST"})
         .then((response) => response.json())
         .then((_result) => {
-            setFollowingTrack(true);
+            setFollowingTrack(false);
+            setTrackLoaded(false);
         });
-}
+    }
 
-function endTrack() {
-    const endTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/stop`;
-    fetch(endTrackEndpoint, {method: "POST"})
-    .then((response) => response.json())
-    .then((_result) => {
-        setFollowingTrack(false);
-    });
-}
+    function rowsError() {
+        if (!Number.isInteger(numRows)){
+            return true;
+        }
+        return numRows <= 0
+    }
+
+    function toPosInt(str: string) {  
+        let val = +str;
+        if (Number.isNaN(val)) {
+            return false;
+        }
+        if ((val % 1) != 0) {
+            return false;
+        }
+        if (val < 1) {
+            return false;
+        }
+        return val;
+    }
+
+    function lineOptions() {
+        if (props.selectedType != TrackType.line) {
+            return;
+        }
+        return (<>
+        <Grid2 size={6}>
+            <TextField
+                type="number"
+                inputRef={inputRef}
+                value={numRows}
+                onChange={(event) => updateNumRows(event.target.value)}
+                onFocus={() => openKeyboard(
+                    (input) => updateNumRows(input),
+                    String(numRows),
+                    inputRef
+                )}
+                placeholder="Number of rows"
+                disabled={trackLoaded}
+                error={rowsError()}
+                helperText={rowsError() ? "Number of rows must be a positive integer" : ""}
+                style={{ width: "250px"}}
+            />
+        </Grid2>
+        <Grid2 size={6}>
+            <Button 
+            style={buttonStyle} 
+            onClick={() => setFirstTurnRight(!firstTurnRight)}>
+                {firstTurnRight ? "Turn Right" : "Turn Left"}
+            </Button>
+        </Grid2>
+        </>);
+    }
 
 
-useEffect(fetchStartingPoint, [props.selectedTrack]);
-// useEffect(fetchEndingPoint, [props.selectedTrack]);
+    useEffect(fetchStartingPoint, [props.selectedTrack]);
+    // useEffect(fetchEndingPoint, [props.selectedTrack]);
 
     const Item = styled(Paper)(({ theme }) => ({
         backgroundColor: '#fff',
@@ -216,22 +298,25 @@ useEffect(fetchStartingPoint, [props.selectedTrack]);
                 </Item>
             </Stack>
             </Grid2>
+            {lineOptions()}
             <Grid2 size={12} style={{ justifyContent: "center", display: "flex", marginTop: "20px" }}>
                 <Button
                     variant="contained"
                     color="primary"
-                    onClick={!trackLoaded ? followTrack : resumeTrack}
+                    disabled={trackLoaded && !followingTrack}
+                    onClick={!trackLoaded ? followTrack : pauseTrack}
                     style={buttonStyle}
                 >
-                    {!trackLoaded ? "Follow Track" : "Resume Track"}
+                    {!trackLoaded ? "Follow Track" : "Pause Track"}
                 </Button>
                 <Button
                     variant="contained"
                     color="primary"
-                    onClick={followingTrack ? pauseTrack : resumeTrack}
+                    disabled={!trackLoaded || (trackLoaded && followingTrack)}
+                    onClick={resumeTrack}
                     style={buttonStyle}
                 >
-                    {followingTrack ? "Pause Track" : "Resume Track"}
+                    Resume Track
                 </Button>
                 <Button
                     variant="contained"

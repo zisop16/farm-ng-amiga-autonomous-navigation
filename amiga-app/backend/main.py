@@ -24,6 +24,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 os.chdir(f"{Path(__file__).parent}/..")
 
 import asyncio
+from farm_ng.core.event_client_manager import EventClient
+from fastapi import WebSocket, WebSocketDisconnect
+from farm_ng.core.event_service_pb2 import SubscribeRequest
+from farm_ng.core.uri_pb2 import Uri
+from google.protobuf.json_format import MessageToJson
 
 
 import uvicorn
@@ -31,6 +36,7 @@ from farm_ng.core.event_client_manager import EventClientSubscriptionManager
 from farm_ng.core.event_service_pb2 import EventServiceConfigList
 from farm_ng.core.events_file_reader import proto_from_json_file
 from farm_ng_core_pybind import Pose3F64
+
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -110,12 +116,49 @@ app.include_router(linefollow.router)
 
 def handle_sigterm(signum, frame):
     print("Received SIGTERM, stopping camera services")
-    oak_manager.terminate()
-    oak_manager.join()
+    if oak_manager != None:
+        oak_manager.terminate()
+        oak_manager.join()
     sys.exit(0)
 
 
 signal.signal(signal.SIGTERM, handle_sigterm)
+
+
+@app.websocket("/filter_data")
+async def filter_data(websocket: WebSocket, every_n: int = 3):
+    """Coroutine to subscribe to filter state service via websocket.
+
+    Args:
+        websocket (WebSocket): the websocket connection
+        every_n (int, optional): the frequency to receive events.
+
+    Usage:
+        ws = new WebSocket(`${API_URL}/filter_data`)
+    """
+    event_manager = websocket.state.event_manager
+    full_service_name = "filter"
+    client: EventClient = event_manager.clients[full_service_name]
+
+    await websocket.accept()
+
+    disconnected = False
+
+    async for _, msg in client.subscribe(
+        SubscribeRequest(
+            uri=Uri(path=f"/state", query=f"service_name={full_service_name}"),
+            every_n=every_n,
+        ),
+        decode=True,
+    ):
+        try:
+            await websocket.send_json(MessageToJson(msg))
+        except WebSocketDisconnect as e:
+            disconnected = True
+            break
+
+    if not disconnected:
+        await websocket.close()
 
 
 if __name__ == "__main__":
