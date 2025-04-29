@@ -22,7 +22,7 @@ class Camera:
         cv2.resizeWindow(self.window_name, 640, 360)
 
         # Camera intrinsic parameters
-        self.intrinsic_mat = np.array(self.device.readCalibration().getCameraIntrinsics(dai.CameraBoardSocket.RGB, 3840, 2160))
+        self.intrinsic_mat = np.array(self.device.readCalibration().getCameraIntrinsics(dai.CameraBoardSocket.CAM_C, -1, -1))
         self.distortion_coef = np.zeros((1,5))
 
         # Camera extrinsic parameters

@@ -32,9 +32,9 @@ def startStreamingServer(server_stream_queue: Queue, STREAM_FPS, stream_port: in
                             self.wfile.write("--jpgboundary".encode())
                             self.wfile.write(bytes([13, 10]))
                             self.send_header('Content-type', 'image/jpeg')
-                            self.send_header('Content-length', str(len(frame.getData())))
+                            self.send_header('Content-length', str(len(frame)))
                             self.end_headers()
-                            self.wfile.write(frame.getData())
+                            self.wfile.write(frame)
                             self.end_headers()
                             time.sleep(delay)
 
