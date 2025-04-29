@@ -52,6 +52,9 @@ from routers import tracks, record, follow, linefollow
 
 from cameraBackend.oakManager import startCameras
 
+global oak_manager
+global camera_msg_queue
+camera_msg_queue = Queue()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -71,13 +74,11 @@ async def lifespan(app: FastAPI):
 
     event_manager = EventClientSubscriptionManager(config_list=service_config_list)
 
-    global queue, oak_manager
-    queue = Queue()
     no_cameras = True
     if no_cameras:
         oak_manager = None
     else:
-        oak_manager = Process(target=startCameras, args=(queue, POINTCLOUD_DATA_DIR))
+        oak_manager = Process(target=startCameras, args=(camera_msg_queue, POINTCLOUD_DATA_DIR))
         oak_manager.start()
         print(f"Starting oak manager with PID {oak_manager.pid}")
 
@@ -86,6 +87,7 @@ async def lifespan(app: FastAPI):
     yield {
         "event_manager": event_manager,
         "oak_manager": oak_manager,
+        "camera_msg_queue": camera_msg_queue,
         # Yield dict cannot be changed directly, but objects inside it can
         # So we use a vars item for all our non constant variables
         "vars": StateVars(),

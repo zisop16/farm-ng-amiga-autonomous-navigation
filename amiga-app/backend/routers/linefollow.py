@@ -40,10 +40,6 @@ from backend.robot_utils import walk_towards, format_track
 
 router = APIRouter()
 
-def get_message_queue():
-    from main import queue
-    return queue
-
 async def get_pose(filter_client: EventClient) -> Pose3F64:
     """Get the current pose of the robot in the world frame, from the filter service.
 
@@ -227,11 +223,11 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
     await track_client.request_reply("/start", Empty())
     vars.following_track = True
 
-    background_tasks.add_task(handle_image_capture, vars, track_client, line_name, row_indices)
+    background_tasks.add_task(handle_image_capture, vars, request.camera_msg_queue, track_client, line_name, row_indices)
 
     return {"message": "Line follow started"}
 
-async def handle_image_capture(vars: StateVars, client: EventClient, line_name: str, row_indices: list[tuple[int, int]]):
+async def handle_image_capture(vars: StateVars, camera_msg_queue: Queue, client: EventClient, line_name: str, row_indices: list[tuple[int, int]]):
     """_summary_
 
     Args:
@@ -286,16 +282,16 @@ async def handle_image_capture(vars: StateVars, client: EventClient, line_name: 
                         print(f"Travelled a distance of {distance_travelled} meters. Capturing image")
                         last_image_capture = dist_remaining
                         await client.request_reply("/pause", Empty())
-                        await capture_image(line_name, current_row_number, capture_number)
+                        await capture_image(camera_msg_queue, line_name, current_row_number, capture_number)
                         capture_number += 1
                         await client.request_reply("/resume", Empty())
 
 
 async def capture_image(
+    camera_msg_queue: Queue,
     line_name: str,
     row_number: int,
-    capture_number: int,
-    queue: Queue = Depends(get_message_queue),
+    capture_number: int
 ):
     msg = {
         "action": "save_point_cloud",
@@ -304,7 +300,7 @@ async def capture_image(
         "capture_number": capture_number,
     }
 
-    queue.put(msg)
+    camera_msg_queue.put(msg)
 
     await asyncio.sleep(3)
 

@@ -1,13 +1,12 @@
 # from farm_ng.core.event_client_manager import EventClientSubscriptionManager
-import os
 import json
-from typing import Optional
-import subprocess
+
 from pydantic import BaseModel
 from farm_ng_core_pybind import Isometry3F64
 from farm_ng_core_pybind import Pose3F64
 from farm_ng_core_pybind import Rotation3F64
 import numpy as np
+
 
 class StateVars(BaseModel):
     track_recording: bool = False
@@ -24,10 +23,11 @@ class StateVars(BaseModel):
     track_follow_id: int = 0
 
     class Config:
-        arbitrary_types_allowed=True
+        arbitrary_types_allowed = True
+
 
 # Path to the GPS logging script
-SERVICE_CONFIG_PATH =  "./service_config.json"
+SERVICE_CONFIG_PATH = "./service_config.json"
 
 # Directory where track JSON files are stored
 TRACKS_DIR = "./tracks/"
