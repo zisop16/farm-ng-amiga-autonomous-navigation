@@ -4,7 +4,8 @@
 
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import open3d as o3d
 from .camera import Camera
@@ -61,11 +62,14 @@ class PointCloudFusion:
         for camera in self.cameras:
             o3d.io.write_point_cloud(
                 f"{POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_{camera.camera_ip}.ply",
-                camera.point_cloud
+                camera.point_cloud,
             )
 
         fused_point_cloud = self.cameras[0].point_cloud + self.cameras[1].point_cloud
         o3d.io.write_point_cloud(
-            f"{POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_fused.ply", fused_point_cloud)
+            f"{POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_fused.ply",
+            fused_point_cloud,
+        )
+
     def quit(self):
         self.running = False

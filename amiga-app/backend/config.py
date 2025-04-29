@@ -9,6 +9,7 @@ from farm_ng_core_pybind import Pose3F64
 from farm_ng_core_pybind import Rotation3F64
 import numpy as np
 
+
 class StateVars(BaseModel):
     track_recording: bool = False
     # Name of the line being recorded, so it can be accessed
@@ -23,10 +24,11 @@ class StateVars(BaseModel):
     following_track: bool = False
 
     class Config:
-        arbitrary_types_allowed=True
+        arbitrary_types_allowed = True
+
 
 # Path to the GPS logging script
-SERVICE_CONFIG_PATH =  "./service_config.json"
+SERVICE_CONFIG_PATH = "./service_config.json"
 
 # Directory where track JSON files are stored
 TRACKS_DIR = "./tracks/"

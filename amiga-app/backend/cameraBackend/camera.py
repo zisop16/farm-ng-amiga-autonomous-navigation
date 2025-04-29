@@ -4,7 +4,8 @@
 
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import depthai as dai
 import cv2
@@ -17,6 +18,7 @@ from config import CALIBRATION_DATA_DIR, MIN_RANGE_MM, MAX_RANGE_MM
 
 FPS = 5
 
+
 class Camera:
     def __init__(self, device_info: dai.DeviceInfo, stream_port: str):
         self.device_info = device_info
@@ -28,8 +30,12 @@ class Camera:
 
         self.device.setIrLaserDotProjectorBrightness(1200)
 
-        self.image_queue = self.device.getOutputQueue(name="image", maxSize=10, blocking=False)
-        self.depth_queue = self.device.getOutputQueue(name="depth", maxSize=10, blocking=False)
+        self.image_queue = self.device.getOutputQueue(
+            name="image", maxSize=10, blocking=False
+        )
+        self.depth_queue = self.device.getOutputQueue(
+            name="depth", maxSize=10, blocking=False
+        )
         self.sync_queue = SyncQueue(["image", "depth"])
 
         self.image_frame = None
@@ -51,30 +57,38 @@ class Camera:
             self.cam_to_world = extrinsics["cam_to_world"]
             self.world_to_cam = extrinsics["world_to_cam"]
         except:
-            #raise RuntimeError(f"Could not load calibration data for camera {self.camera_ip} from {path}!")
+            # raise RuntimeError(f"Could not load calibration data for camera {self.camera_ip} from {path}!")
             print("No calibration data for camera")
 
         calibration = self.device.readCalibration()
         self.intrinsics = calibration.getCameraIntrinsics(
             # TODO: Figure out boardsocket differences
-            dai.CameraBoardSocket.RGB, 
-            dai.Size2f(*self.image_size)
+            dai.CameraBoardSocket.RGB,
+            dai.Size2f(*self.image_size),
         )
 
         self.pinhole_camera_intrinsic = o3d.camera.PinholeCameraIntrinsic(
-            *self.image_size, self.intrinsics[0][0], self.intrinsics[1][1], self.intrinsics[0][2], self.intrinsics[1][2]
+            *self.image_size,
+            self.intrinsics[0][0],
+            self.intrinsics[1][1],
+            self.intrinsics[0][2],
+            self.intrinsics[1][2],
         )
 
         try:
-            self.point_cloud_alignment = np.load(f"{CALIBRATION_DATA_DIR}/point_cloud_alignment_{self.camera_ip}.npy")
+            self.point_cloud_alignment = np.load(
+                f"{CALIBRATION_DATA_DIR}/point_cloud_alignment_{self.camera_ip}.npy"
+            )
         except:
-            self.point_cloud_alignment = np.eye(4) # Default to no alignment correction
+            self.point_cloud_alignment = np.eye(4)  # Default to no alignment correction
 
         print(self.pinhole_camera_intrinsic)
 
     def save_point_cloud_alignment(self):
-        np.save(f"{CALIBRATION_DATA_DIR}/point_cloud_alignment_{self.camera_ip}.npy", self.point_cloud_alignment)
-    
+        np.save(
+            f"{CALIBRATION_DATA_DIR}/point_cloud_alignment_{self.camera_ip}.npy",
+            self.point_cloud_alignment,
+        )
 
     def _create_pipeline(self):
         pipeline = dai.Pipeline()
@@ -83,16 +97,16 @@ class Camera:
         videoEnc = pipeline.create(dai.node.VideoEncoder)
         videoEnc.setDefaultProfilePreset(FPS, dai.VideoEncoderProperties.Profile.MJPEG)
 
-
         # Output frontend streaming server node
         server = pipeline.create(dai.node.Script)
-        videoEnc.bitstream.link(server.inputs['frame']) 
+        videoEnc.bitstream.link(server.inputs["frame"])
 
         server.setProcessor(dai.ProcessorType.LEON_CSS)
-        server.inputs['frame'].setBlocking(False)
-        server.inputs['frame'].setQueueSize(1)
+        server.inputs["frame"].setBlocking(False)
+        server.inputs["frame"].setQueueSize(1)
 
-        server.setScript(f"""
+        server.setScript(
+            f"""
         import time
         import socket
         from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -126,8 +140,8 @@ class Camera:
         with ThreadingSimpleServer(("", {self.stream_port}), HTTPHandler) as httpd:
             node.warn(f"Serving RGB MJPEG stream at {self.camera_ip + ":" + self.stream_port + "/rgb"}")
             httpd.serve_forever()
-        """)
-
+        """
+        )
 
         # Time of Flight to dppth node
         tof = pipeline.create(dai.node.ToF)
@@ -146,19 +160,16 @@ class Camera:
 
         tof.initialConfig.set(tofConfig)
 
-
         # Raw ToF camera node
         cam_tof = pipeline.create(dai.node.Camera)
-        cam_tof.setFps(60) # ToF node will produce depth frames at /2 of this rate
+        cam_tof.setFps(60)  # ToF node will produce depth frames at /2 of this rate
         cam_tof.setBoardSocket(dai.CameraBoardSocket.CAM_A)
         cam_tof.raw.link(tof.input)
-
 
         # Output depth node
         xout = pipeline.create(dai.node.XLinkOut)
         xout.setStreamName("depth")
         tof.depth.link(xout.input)
-
 
         # RGB cam
         xout_image = pipeline.createXLinkOut()
@@ -188,14 +199,16 @@ class Camera:
         msg_sync = self.sync_queue.get()
         if msg_sync is None:
             return
-        
+
         self.depth_frame = msg_sync["depth"].getFrame()
         self.image_frame = msg_sync["image"].getCvFrame()
         rgb = cv2.cvtColor(self.image_frame, cv2.COLOR_BGR2RGB)
         self.rgbd_to_point_cloud(self.depth_frame, rgb)
 
-    def rgbd_to_point_cloud(self, depth_frame, image_frame, downsample=False, remove_noise=False):
-        depth_frame = depth_frame[:400, :] # TODO: Check if this is correct
+    def rgbd_to_point_cloud(
+        self, depth_frame, image_frame, downsample=False, remove_noise=False
+    ):
+        depth_frame = depth_frame[:400, :]  # TODO: Check if this is correct
         rgb_o3d = o3d.geometry.Image(image_frame)
         df = np.copy(depth_frame).astype(np.float32)
         # df -= 20
@@ -212,14 +225,16 @@ class Camera:
             point_cloud = point_cloud.voxel_down_sample(voxel_size=0.01)
 
         if remove_noise:
-            point_cloud = point_cloud.remove_statistical_outlier(nb_neighbors=30, std_ratio=0.1)[0]
+            point_cloud = point_cloud.remove_statistical_outlier(
+                nb_neighbors=30, std_ratio=0.1
+            )[0]
 
         self.point_cloud.points = point_cloud.points
         self.point_cloud.colors = point_cloud.colors
 
         # correct upside down z axis
         T = np.eye(4)
-        T[2,2] = -1
+        T[2, 2] = -1
         self.point_cloud.transform(T)
 
         # apply point cloud alignment transform

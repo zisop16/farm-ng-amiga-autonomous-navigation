@@ -8,9 +8,12 @@ from backend.config import *
 
 router = APIRouter()
 
+
 def get_message_queue():
     from main import queue
+
     return queue
+
 
 @router.get("/pointcloud/save")
 async def pointcloud_save(queue: Queue = Depends(get_message_queue)):
@@ -22,6 +25,7 @@ async def pointcloud_save(queue: Queue = Depends(get_message_queue)):
 
     return {"status": "Point cloud saved"}
 
+
 @router.get("/pointcloud/align")
 async def pointcloud_align(queue: Queue = Depends(get_message_queue)):
     """Create alignment config for cameras"""
@@ -31,6 +35,7 @@ async def pointcloud_align(queue: Queue = Depends(get_message_queue)):
     queue.put("align_point_clouds")
 
     return {"status": "Camera alignment set"}
+
 
 @router.get("/pointcloud/reset")
 async def pointcloud_reset(queue: Queue = Depends(get_message_queue)):

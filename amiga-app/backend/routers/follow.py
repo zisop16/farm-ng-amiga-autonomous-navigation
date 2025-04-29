@@ -3,11 +3,7 @@ from pathlib import Path
 
 from farm_ng.core.event_client_manager import EventClient
 from farm_ng.core.events_file_reader import proto_from_json_file
-from farm_ng.track.track_pb2 import (
-    Track,
-    TrackFollowRequest,
-    TrackFollowerState
-)
+from farm_ng.track.track_pb2 import Track, TrackFollowRequest, TrackFollowerState
 
 from fastapi import APIRouter
 from fastapi import HTTPException
@@ -24,7 +20,6 @@ from farm_ng.core.uri_pb2 import Uri
 from backend.config import *
 from backend.robot_utils import walk_towards
 import base64
-
 
 
 router = APIRouter()
@@ -48,15 +43,18 @@ async def follow_track(request: Request, track_name: str):
 
     return {"message": f"Following track '{track_name}'."}
 
+
 @router.get("/follow/state")
 async def follower_state(request: Request):
     event_manager = request.state.event_manager
     client = event_manager.clients["track_follower"]
 
-    state: TrackFollowerState = await client.request_reply("/get_state", Empty(), decode=True)
-    
+    state: TrackFollowerState = await client.request_reply(
+        "/get_state", Empty(), decode=True
+    )
+
     controllable = state.status.robot_status.controllable
-    
+
     return {"controllable": controllable}
 
 
@@ -65,7 +63,7 @@ async def pause_following(request: Request):
     """Instructs the robot to pause track following."""
     event_manager = request.state.event_manager
     client = event_manager.clients["track_follower"]
-    
+
     try:
         await client.request_reply("/pause", Empty())
     except AioRpcError:
@@ -73,7 +71,8 @@ async def pause_following(request: Request):
 
     return {"message": "Pausing track following"}
 
-#Resume
+
+# Resume
 
 
 @router.post("/follow/stop")
@@ -88,23 +87,21 @@ async def stop_following(request: Request):
 
     return {"success": True, "message": "Stopping track following"}
 
+
 @router.websocket("/filter_data")
-async def filter_data(
-    websocket: WebSocket,
-    every_n: int = 10
-):
+async def filter_data(websocket: WebSocket, every_n: int = 10):
     """Coroutine to subscribe to filter state service via websocket.
-    
+
     Args:
         websocket (WebSocket): the websocket connection
         every_n (int, optional): the frequency to receive events.
-    
+
     Usage:
         ws = new WebSocket(`${API_URL}/filter_data`)
     """
     event_manager = websocket.state.event_manager
     full_service_name = "filter"
-    client: EventClient = (event_manager.clients[full_service_name])
+    client: EventClient = event_manager.clients[full_service_name]
 
     await websocket.accept()
 

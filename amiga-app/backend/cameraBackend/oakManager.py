@@ -1,6 +1,7 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from multiprocessing import Process, Queue
 import depthai as dai
@@ -13,11 +14,7 @@ from cameraBackend.camera import Camera
 from cameraBackend.pointCloud import PointCloudFusion
 
 cameras: List[Camera] = []
-cameraIps = [
-    "10.95.76.11",
-    "10.95.76.12",
-    "10.95.76.13"
-]
+cameraIps = ["10.95.76.11", "10.95.76.12", "10.95.76.13"]
 CAMERA_PORT = "5000"
 
 # def startCameras():
@@ -39,12 +36,14 @@ CAMERA_PORT = "5000"
 #         for process in processes:
 #             process.join()
 
-def startCameras(queue = None):
+
+def startCameras(queue=None):
     device_infos = dai.Device.getAllAvailableDevices()
-    device_infos.sort(key=lambda x: x.name, reverse=True) # Sort by ip
+    device_infos.sort(key=lambda x: x.name, reverse=True)  # Sort by ip
     print(device_infos)
     for device_info in device_infos:
-        if device_info.name == "10.95.76.10": continue
+        if device_info.name == "10.95.76.10":
+            continue
         cameras.append(Camera(device_info, CAMERA_PORT))
         sleep(2)
 
@@ -61,7 +60,7 @@ def startCameras(queue = None):
                 pointCloudFusion.update_fused_point_cloud()
                 pointCloudFusion.save_point_cloud()
 
-    
+
 if __name__ == "__main__":
     q = Queue()
     startCameras(q)

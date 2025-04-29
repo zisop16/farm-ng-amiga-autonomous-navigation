@@ -17,7 +17,8 @@ from __future__ import annotations
 import sys
 import os
 from pathlib import Path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Navigate one directory out of the location of main.py
 os.chdir(f"{Path(__file__).parent}/..")
 
@@ -71,7 +72,7 @@ async def lifespan(app: FastAPI):
     else:
         oak_manager = Process(target=startCameras, args=(queue,))
         oak_manager.start()
-    
+
     asyncio.create_task(event_manager.update_subscriptions())
 
     yield {
@@ -79,8 +80,8 @@ async def lifespan(app: FastAPI):
         "oak_manager": oak_manager,
         # Yield dict cannot be changed directly, but objects inside it can
         # So we use a vars item for all our non constant variables
-        "vars": StateVars()
-    } 
+        "vars": StateVars(),
+    }
 
     print("Shutting down...")
 
@@ -116,7 +117,7 @@ if __name__ == "__main__":
             "/",
             StaticFiles(directory=str(react_build_directory.resolve()), html=True),
         )
-    
+
     # print(f"camera PID: {oakManager.pid}")
 
     # run the server
