@@ -18,7 +18,8 @@ import signal
 import sys
 import os
 from pathlib import Path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Navigate one directory out of the location of main.py
 os.chdir(f"{Path(__file__).parent}/..")
 
@@ -29,24 +30,25 @@ import uvicorn
 from farm_ng.core.event_client_manager import EventClientSubscriptionManager
 from farm_ng.core.event_service_pb2 import EventServiceConfigList
 from farm_ng.core.events_file_reader import proto_from_json_file
+from farm_ng_core_pybind import Pose3F64
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from pydantic import BaseModel
 
 from multiprocessing import Process, Queue
 
 from config import *
 
-from routers import tracks, record, follow
+from routers import tracks, record, follow, linefollow
 
 from cameraBackend.oakManager import startCameras
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global event_manager
     print("Initializing App...")
 
     # config with all the configs
@@ -63,25 +65,31 @@ async def lifespan(app: FastAPI):
 
     event_manager = EventClientSubscriptionManager(config_list=service_config_list)
 
-    global queue
+    global queue, oak_manager
     queue = Queue()
-    global oak_manager
-    oak_manager = Process(target=startCameras, args=(queue, POINTCLOUD_DATA_DIR))
-    oak_manager.start()
-    print(f"Starting oak manager with PID {oak_manager.pid}")
-    
+    no_cameras = True
+    if no_cameras:
+        oak_manager = None
+    else:
+        oak_manager = Process(target=startCameras, args=(queue, POINTCLOUD_DATA_DIR))
+        oak_manager.start()
+        print(f"Starting oak manager with PID {oak_manager.pid}")
+
     asyncio.create_task(event_manager.update_subscriptions())
 
     yield {
         "event_manager": event_manager,
-        "oak_manager": oak_manager
-    } 
+        "oak_manager": oak_manager,
+        # Yield dict cannot be changed directly, but objects inside it can
+        # So we use a vars item for all our non constant variables
+        "vars": StateVars(),
+    }
 
-    print("Stopping camera services...")
     # Shutdown cameras properly
-    oak_manager.terminate()
-    oak_manager.join()
-
+    if oak_manager != None:
+        print("Stopping camera services...")
+        oak_manager.terminate()
+        oak_manager.join()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -97,13 +105,16 @@ app.add_middleware(
 app.include_router(tracks.router)
 app.include_router(record.router)
 app.include_router(follow.router)
+app.include_router(linefollow.router)
 
-    
+
 def handle_sigterm(signum, frame):
     print("Received SIGTERM, stopping camera services")
     oak_manager.terminate()
     oak_manager.join()
     sys.exit(0)
+
+
 signal.signal(signal.SIGTERM, handle_sigterm)
 
 
@@ -123,7 +134,7 @@ if __name__ == "__main__":
             "/",
             StaticFiles(directory=str(react_build_directory.resolve()), html=True),
         )
-    
+
     # print(f"camera PID: {oakManager.pid}")
 
     # run the server

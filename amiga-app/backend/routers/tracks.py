@@ -18,14 +18,10 @@ async def kill_app():
 @router.get("/list_tracks")
 async def list_tracks():
     """Lists all JSON track files in the `TRACKS_DIR` directory."""
-    print("hi")
     if not os.path.exists(TRACKS_DIR):
         return {"error": "No tracks directory found."}
 
     track_names = [f[:-5] for f in os.listdir(TRACKS_DIR) if f.endswith(".json")]
-
-    if track_names == []:
-        return {"error": "No existing tracks."}
 
     return {"tracks": track_names}
 

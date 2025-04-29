@@ -22,13 +22,15 @@ from google.protobuf.json_format import MessageToJson
 from farm_ng.core.uri_pb2 import Uri
 
 from backend.config import *
+from backend.robot_utils import walk_towards
 import base64
 
 
 
 router = APIRouter()
 
-@router.post("/follow/{track_name}")
+
+@router.post("/follow/start/{track_name}")
 async def follow_track(request: Request, track_name: str):
     """Instructs the robot to follow an existing recorded track."""
     event_manager = request.state.event_manager
@@ -51,16 +53,14 @@ async def follower_state(request: Request):
     event_manager = request.state.event_manager
     client = event_manager.clients["track_follower"]
 
-    json_response = json.loads(MessageToJson(await client.request_reply("/get_state", Empty())))
+    state: TrackFollowerState = await client.request_reply("/get_state", Empty(), decode=True)
     
-    payload_bytes = base64.b64decode(json_response["payload"])
-    state  = TrackFollowerState.FromString(payload_bytes)
     controllable = state.status.robot_status.controllable
     
     return {"controllable": controllable}
 
 
-@router.post("/pause_following/")
+@router.post("/follow/pause")
 async def pause_following(request: Request):
     """Instructs the robot to pause track following."""
     event_manager = request.state.event_manager
@@ -73,8 +73,10 @@ async def pause_following(request: Request):
 
     return {"message": "Pausing track following"}
 
+#Resume
 
-@router.post("/stop_following")
+
+@router.post("/follow/stop")
 async def stop_following(request: Request):
     """Instructs the robot to stop track following."""
     event_manager = request.state.event_manager
@@ -95,7 +97,7 @@ async def filter_data(
     
     Args:
         websocket (WebSocket): the websocket connection
-        every_n (int, optional): the frequency to receive events. Defaults to 1.
+        every_n (int, optional): the frequency to receive events.
     
     Usage:
         ws = new WebSocket(`${API_URL}/filter_data`)
