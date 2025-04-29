@@ -1,5 +1,6 @@
 import asyncio
 import json
+from multiprocessing import Queue
 
 from farm_ng.core.event_client_manager import EventClient
 from farm_ng.core.events_file_writer import proto_to_json_file
@@ -25,6 +26,7 @@ from fastapi import HTTPException
 from fastapi import BackgroundTasks
 from fastapi import APIRouter
 from fastapi import Request
+from fastapi import Depends
 
 from pydantic import BaseModel
 
@@ -37,6 +39,10 @@ from backend.config import *
 from backend.robot_utils import walk_towards, format_track
 
 router = APIRouter()
+
+def get_message_queue():
+    from main import queue
+    return queue
 
 async def get_pose(filter_client: EventClient) -> Pose3F64:
     """Get the current pose of the robot in the world frame, from the filter service.
@@ -284,9 +290,24 @@ async def handle_image_capture(vars: StateVars, client: EventClient, line_name: 
                         capture_number += 1
                         await client.request_reply("/resume", Empty())
 
-async def capture_image(line_name: str, row_number: int, capture_number: int):
-    # Dummy function for image capture
+
+async def capture_image(
+    line_name: str,
+    row_number: int,
+    capture_number: int,
+    queue: Queue = Depends(get_message_queue),
+):
+    msg = {
+        "action": "save_point_cloud",
+        "line_name": line_name,
+        "row_number": row_number,
+        "capture_number": capture_number,
+    }
+
+    queue.put(msg)
+
     await asyncio.sleep(3)
+
 
 @router.post("/line/delete/{track_name}")
 async def delete_track(track_name):

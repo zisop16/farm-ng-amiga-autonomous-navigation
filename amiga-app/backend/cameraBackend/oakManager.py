@@ -53,11 +53,15 @@ def startCameras(queue = None):
     if queue != None:
         while True:
             msg = queue.get()
-            if msg == "align_point_clouds":
+            action = msg.get("action", "No action")
+            if action == "align_point_clouds":
                 pointCloudFusion.align_point_clouds()
-            elif msg == "reset_alignment":
+            elif action == "reset_alignment":
                 pointCloudFusion.reset_alignment()
-            elif msg == "save_point_cloud":
+            elif action == "save_point_cloud":
+                line_name = msg.get("line_name", "X")
+                row_number = msg.get("row_number", "X")
+                capture_number = msg.get("capture_number", "X")
                 pointCloudFusion.update_fused_point_cloud()
                 pointCloudFusion.save_point_cloud()
 

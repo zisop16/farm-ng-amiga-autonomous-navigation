@@ -69,6 +69,7 @@ async def lifespan(app: FastAPI):
 
     event_manager = EventClientSubscriptionManager(config_list=service_config_list)
 
+    global queue
     queue = Queue()
 
     no_cameras = True
