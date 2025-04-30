@@ -5,6 +5,8 @@
 import sys
 import os
 import time
+from datetime import timedelta
+import datetime
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -89,6 +91,13 @@ class Camera:
             Gracefully terminates the streaming server process and closes the device.
     """
 
+    temp = False
+    def testPrint(self):
+        print("adding frame")
+        if self.temp == False:
+            self.update()
+            self.temp = True
+
     def __init__(
         self,
         device_info: dai.DeviceInfo,
@@ -104,6 +113,8 @@ class Camera:
         self._create_pipeline()
         self._device = dai.Device(self.pipeline, device_info)  # Initialize camera
         self._device.setIrLaserDotProjectorBrightness(0)  # Not using active stereo
+        self._device.setIrFloodLightIntensity(0)
+
         self._device_info = device_info
 
         self._image_queue: dai.DataOutputQueue = self._device.getOutputQueue(
@@ -117,6 +128,11 @@ class Camera:
         )
         self._sync_queue = SyncQueue(["image", "depth"])
 
+        self.output_queue = self._device.getOutputQueue(
+            name="out", maxSize=4, blocking=False
+        )
+        self.output_queue.addCallback(self.testPrint)
+
         self._image_frame = None
         self._depth_frame = None
         self.point_cloud = o3d.geometry.PointCloud()
@@ -127,11 +143,11 @@ class Camera:
 
         # Start streams as seperate thread
         self._http_streaming_server = None
-        self.streamingServerThread = threading.Thread(target=self.start_streaming_server, daemon=True)
-        self.streamingServerThread.start()
-        print(
-            f"Starting streaming server for camera {device_info.name}"
+        self.streamingServerThread = threading.Thread(
+            target=self.start_streaming_server, daemon=True
         )
+        self.streamingServerThread.start()
+        print(f"Starting streaming server for camera {device_info.name}")
 
     def shutdown(self):
         if self._http_streaming_server:
@@ -190,85 +206,150 @@ class Camera:
 
     def _create_pipeline(self):
         pipeline = dai.Pipeline()
-
-        # Video encoder (MJPEG) for frontend
-        video_enc = pipeline.create(dai.node.VideoEncoder)
-        video_enc.setDefaultProfilePreset(
-            self.PIPELINE_FPS, dai.VideoEncoderProperties.Profile.MJPEG
-        )
-        video_enc.setFrameRate(self.PIPELINE_FPS)
-
-        # Link video encoder output to XLinkOut("video")
-        xout_video = pipeline.createXLinkOut()
-        xout_video.setStreamName("video")
-        xout_video.setFpsLimit(self.VIDEO_FPS)
-        xout_video.input.setBlocking(False)
-        xout_video.input.setQueueSize(1)
-        video_enc.bitstream.link(xout_video.input)
-
-        # Time‐of‐flight / depth pipeline
+        # Define sources and outputs
+        camRgb = pipeline.create(dai.node.ColorCamera)
         tof = pipeline.create(dai.node.ToF)
-        # Apply ToF settings
-        cfg = tof.initialConfig.get()
-        cfg.enableOpticalCorrection = True
-        cfg.enablePhaseShuffleTemporalFilter = True
-        cfg.phaseUnwrappingLevel = 1
-        cfg.phaseUnwrapErrorThreshold = 200
+        camTof = pipeline.create(dai.node.Camera)
+        sync = pipeline.create(dai.node.Sync)
+        align = pipeline.create(dai.node.ImageAlign)
+        out = pipeline.create(dai.node.XLinkOut)
+        pointcloud = pipeline.create(dai.node.PointCloud)
 
-        # Create ToF config
-        xin_tof_cfg = pipeline.create(dai.node.XLinkIn)
-        xin_tof_cfg.setStreamName("tofConfig")
+        # ToF settings
+        camTof.setFps(self.PIPELINE_FPS * 2)
+        camTof.setBoardSocket(dai.CameraBoardSocket.CAM_A)
 
+        tofConfig = tof.initialConfig.get()
+        # choose a median filter or use none - using the median filter improves the pointcloud but causes discretization of the data
+        tofConfig.median = dai.MedianFilter.KERNEL_3x3
+        # tofConfig.median = dai.MedianFilter.KERNEL_5x5
+        # tofConfig.median = dai.MedianFilter.KERNEL_7x7
+        tofConfig.enablePhaseShuffleTemporalFilter = True
 
-        xin_tof_cfg.out.link(tof.inputConfig)
+        tofConfig.phaseUnwrappingLevel = 1
+        tofConfig.phaseUnwrapErrorThreshold = 300
+        tof.initialConfig.set(tofConfig)
 
-        tof.initialConfig.set(cfg)
+        # rgb settings
+        camRgb.setBoardSocket(dai.CameraBoardSocket.CAM_C)
+        camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_800_P)
+        camRgb.setFps(self.PIPELINE_FPS)
+        camRgb.setIspScale(1, 2)
 
-        # Raw ToF camera feed
-        cam_tof = pipeline.create(dai.node.Camera)
-        cam_tof.setBoardSocket(dai.CameraBoardSocket.CAM_A)
-        cam_tof.setFps(self.PIPELINE_FPS * 2)  # ToF outputs at half this rate
-        cam_tof.raw.link(tof.input)
+        out.setStreamName("out")
 
-        # ToF to depth output
-        xout_depth = pipeline.create(dai.node.XLinkOut)
-        xout_depth.setStreamName("depth")
-        tof.depth.link(xout_depth.input)
+        sync.setSyncThreshold(timedelta(seconds=(1 / self.PIPELINE_FPS)))
 
-        # RGB camera
-        # cam_rgb = pipeline.createColorCamera()
-        cam_rgb = pipeline.create(dai.node.ColorCamera)
-        cam_rgb.setBoardSocket(dai.CameraBoardSocket.CAM_C)
-        cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_800_P)
-        cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
-        cam_rgb.setIspScale(1, 2)
-        cam_rgb.setFps(self.PIPELINE_FPS)
-        cam_rgb.setVideoSize(640, 400)
+        # Linking
+        camRgb.isp.link(sync.inputs["rgb"])
+        camTof.raw.link(tof.input)
+        tof.depth.link(align.input)
+        # align.outputAligned.link(sync.inputs["depth_aligned"])
+        align.outputAligned.link(pointcloud.inputDepth)
+        sync.inputs["rgb"].setBlocking(False)
+        camRgb.isp.link(align.inputAlignTo)
+        pointcloud.outputPointCloud.link(sync.inputs["pcl"])
+        sync.out.link(out.input)
+        out.setStreamName("out")
 
-        # RGB image outputs
-        xout_image = pipeline.createXLinkOut()
-        xout_image.setStreamName("image")
-        cam_rgb.isp.link(xout_image.input)
-        cam_rgb.video.link(video_enc.input)
+        # pipeline = dai.Pipeline()
+        #
+        # # Video encoder (MJPEG) for frontend
+        # video_enc = pipeline.create(dai.node.VideoEncoder)
+        # video_enc.setDefaultProfilePreset(
+        #     self.PIPELINE_FPS, dai.VideoEncoderProperties.Profile.MJPEG
+        # )
+        # video_enc.setFrameRate(self.PIPELINE_FPS)
+        #
+        # # Link video encoder output to XLinkOut("video")
+        # xout_video = pipeline.createXLinkOut()
+        # xout_video.setStreamName("video")
+        # xout_video.setFpsLimit(self.VIDEO_FPS)
+        # xout_video.input.setBlocking(False)
+        # xout_video.input.setQueueSize(1)
+        # video_enc.bitstream.link(xout_video.input)
+        #
+        # # Time‐of‐flight / depth pipeline
+        # tof = pipeline.create(dai.node.ToF)
+        # # Apply ToF settings
+        # cfg = tof.initialConfig.get()
+        # cfg.enableOpticalCorrection = True
+        # cfg.enablePhaseShuffleTemporalFilter = True
+        # cfg.phaseUnwrappingLevel = 1
+        # cfg.phaseUnwrapErrorThreshold = 200
+        #
+        # # Create ToF config
+        # xin_tof_cfg = pipeline.create(dai.node.XLinkIn)
+        # xin_tof_cfg.setStreamName("tofConfig")
+        #
+        #
+        # xin_tof_cfg.out.link(tof.inputConfig)
+        #
+        # tof.initialConfig.set(cfg)
+        #
+        # # Raw ToF camera feed
+        # cam_tof = pipeline.create(dai.node.Camera)
+        # cam_tof.setBoardSocket(dai.CameraBoardSocket.CAM_A)
+        # cam_tof.setFps(self.PIPELINE_FPS * 2)  # ToF outputs at half this rate
+        # cam_tof.raw.link(tof.input)
+        #
+        # # ToF to depth output
+        # xout_depth = pipeline.create(dai.node.XLinkOut)
+        # xout_depth.setStreamName("depth")
+        # tof.depth.link(xout_depth.input)
+        #
+        # # RGB camera
+        # # cam_rgb = pipeline.createColorCamera()
+        # cam_rgb = pipeline.create(dai.node.ColorCamera)
+        # cam_rgb.setBoardSocket(dai.CameraBoardSocket.CAM_C)
+        # cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_800_P)
+        # cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
+        # cam_rgb.setIspScale(1, 2)
+        # cam_rgb.setFps(self.PIPELINE_FPS)
+        # cam_rgb.setVideoSize(640, 400)
+        #
+        # # RGB image outputs
+        # xout_image = pipeline.createXLinkOut()
+        # xout_image.setStreamName("image")
+        # cam_rgb.isp.link(xout_image.input)
+        # cam_rgb.video.link(video_enc.input)
 
-        self.image_size = cam_rgb.getIspSize()
+        # self.image_size = cam_rgb.getIspSize()
+        self.image_size = camRgb.getIspSize()
         self.pipeline = pipeline
 
     def update(self):
-        for queue in [self._depth_queue, self._image_queue]:
-            new_frames = queue.tryGetAll()
-            if new_frames is not None:
-                for new_frame in new_frames:
-                    self._sync_queue.add(queue.getName(), new_frame)
-
-        frame_sync = self._sync_queue.get()
-        if frame_sync is None:
-            return
-
-        self._depth_frame = frame_sync["depth"].getFrame()
-        self._image_frame = frame_sync["image"].getCvFrame()
-        rgb = cv2.cvtColor(self._image_frame, cv2.COLOR_BGR2RGB)
-        self._rgbd_to_point_cloud(self._depth_frame, rgb)
+        # for queue in [self._depth_queue, self._image_queue]:
+        #     new_frames = queue.tryGetAll()
+        #     if new_frames is not None:
+        #         for new_frame in new_frames:
+        #             self._sync_queue.add(queue.getName(), new_frame)
+        #
+        # frame_sync = self._sync_queue.get()
+        # if frame_sync is None:
+        #     return
+        #
+        # self._depth_frame = frame_sync["depth"].getFrame()
+        # self._image_frame = frame_sync["image"].getCvFrame()
+        # rgb = cv2.cvtColor(self._image_frame, cv2.COLOR_BGR2RGB)
+        # self._rgbd_to_point_cloud(self._depth_frame, rgb)
+        inMessage = self.output_queue.get()  # type: ignore
+        inColor = inMessage["rgb"]  # type: ignore
+        inPointCloud = inMessage["pcl"]  # type: ignore
+        cvColorFrame = inColor.getCvFrame()
+        # Convert the frame to RGB
+        cvRGBFrame = cv2.cvtColor(cvColorFrame, cv2.COLOR_BGR2RGB)
+        points = inPointCloud.getPoints().astype(np.float64)
+        points[:, 0] = -points[:, 0]  # Invert X axis
+        # points[:, 1] = -points[:, 1]  # Invert Y axis
+        # points[:, 2] = points[:, 2] / 1000.0  # Convert Z axis from mm to meters (if needed)
+        self.point_cloud.points = o3d.utility.Vector3dVector(points)
+        colors = (cvRGBFrame.reshape(-1, 3) / 255.0).astype(np.float64)
+        self.point_cloud.colors = o3d.utility.Vector3dVector(colors)
+        o3d.io.write_point_cloud(
+            f"{datetime.datetime.now()}.ply",
+            self.point_cloud,
+        )
 
     def _rgbd_to_point_cloud(
         self, depth_frame, image_frame, downsample=False, remove_noise=False
@@ -310,23 +391,29 @@ class Camera:
         self.point_cloud.transform(self.alignment)
 
         return self.point_cloud
-    
+
     def make_handler(self, frame_queue: dai.DataOutputQueue):
         delay = 1 / self.VIDEO_FPS
+
         class MJPEGHandler(BaseHTTPRequestHandler):
             def do_GET(self):
-                if self.path == '/rgb':
+                if self.path == "/rgb":
                     try:
                         self.send_response(200)
-                        self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=--jpgboundary')
+                        self.send_header(
+                            "Content-type",
+                            "multipart/x-mixed-replace; boundary=--jpgboundary",
+                        )
                         self.end_headers()
                         while True:
                             frame = frame_queue.get().getData().tobytes()
                             print("streaming frame")
                             boundary = b"--jpgboundary\r\n"
-                            header   = (
+                            header = (
                                 b"Content-Type: image/jpeg\r\n"
-                                b"Content-Length: " + str(len(frame)).encode() + b"\r\n\r\n"
+                                b"Content-Length: "
+                                + str(len(frame)).encode()
+                                + b"\r\n\r\n"
                             )
                             self.wfile.write(boundary + header + frame + b"\r\n")
                             self.wfile.flush()
@@ -334,12 +421,12 @@ class Camera:
 
                     except Exception as ex:
                         return
+
         return MJPEGHandler
 
     def start_streaming_server(self):
         self._http_streaming_server = ThreadingHTTPServer(
-            ("", self.stream_port),
-            self.make_handler(self._video_queue)
+            ("", self.stream_port), self.make_handler(self._video_queue)
         )
         print(f"Starting RGB stream at 127.0.0.1:{self.stream_port}")
         self._http_streaming_server.serve_forever()
