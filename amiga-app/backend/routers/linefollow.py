@@ -202,8 +202,8 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
         if remaining_rows == 1:
             break
         current_position = np.array(_current_pose().translation[:2])
-        # This vector faces a 90 degree counterclockwise rotation of line_delta
-        forward_right_direction = np.array([current_position[1], -current_position[0]])
+        # This vector faces a 90 degree clockwise rotation of line_delta
+        forward_right_direction = np.array([line_delta[1], -line_delta[0]])
         forward_right_direction = forward_right_direction / np.linalg.norm(forward_right_direction)
         # The vector direction of each turn is always the same, because the robot is always moving towards either the right or left side of the field
         turn_direction = forward_right_direction if data.first_turn_right else -forward_right_direction
@@ -224,7 +224,7 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
     await track_client.request_reply("/start", Empty())
     vars.following_track = True
 
-    background_tasks.add_task(handle_image_capture, vars, request.camera_msg_queue, track_client, line_name, row_indices)
+    background_tasks.add_task(handle_image_capture, vars, request.state.camera_msg_queue, track_client, line_name, row_indices)
 
     return {"message": "Line follow started"}
 
@@ -239,7 +239,7 @@ async def handle_image_capture(vars: StateVars, camera_msg_queue: Queue, client:
     current_row_number = -1
     last_image_capture = 0
     initial_distance_offset = .8
-    distance_between_images = 1.5
+    distance_between_images = 1.
 
     vars.track_follow_id += 1
     track_follow_id = vars.track_follow_id
@@ -294,6 +294,8 @@ async def capture_image(
     row_number: int,
     capture_number: int
 ):
+    await asyncio.sleep(3)
+    return
     msg = {
         "action": "save_point_cloud",
         "line_name": line_name,
@@ -303,7 +305,7 @@ async def capture_image(
 
     camera_msg_queue.put(msg)
 
-    await asyncio.sleep(3)
+    
 
 
 @router.post("/line/delete/{track_name}")
