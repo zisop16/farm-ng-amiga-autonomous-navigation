@@ -29,9 +29,8 @@ function orientationToIp(orientation: string) {
 export default function CameraFeed(props: CameraFeedProps) {
     return (
         <Box style={{ backgroundColor: "#000", height: "400px", width: "640px", color: "white", }} >
-            <object
-                data={orientationToIp(props.orientation)}
-                type="multipart/x-mixed-replace;boundary=jpgboundary"
+            <img
+                src={orientationToIp(props.orientation)}
                 width="640"
                 height="400"
             />
