@@ -1,6 +1,7 @@
 import asyncio
 import json
 from multiprocessing import Queue
+import os
 
 from farm_ng.core.event_client_manager import EventClient
 from farm_ng.core.events_file_writer import proto_to_json_file

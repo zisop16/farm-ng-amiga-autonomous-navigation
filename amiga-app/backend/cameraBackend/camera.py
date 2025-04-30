@@ -316,6 +316,7 @@ class Camera:
                         self.end_headers()
                         while True:
                             frame = frame_queue.get().getData().tobytes()
+                            print("streaming frame")
                             boundary = b"--jpgboundary\r\n"
                             header   = (
                                 b"Content-Type: image/jpeg\r\n"
@@ -337,4 +338,4 @@ class Camera:
         print(f"Starting RGB stream at {self._camera_ip}:{self.stream_port}")
         self._http_streaming_server.serve_forever()
         self._http_streaming_server.server_close()
-        print("RGB stream at {self._camera_ip}:{self.stream_port} stopped")
+        print(f"RGB stream at {self._camera_ip}:{self.stream_port} stopped")
