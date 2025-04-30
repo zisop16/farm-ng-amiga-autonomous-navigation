@@ -21,7 +21,7 @@ cameraIps = ["10.95.76.11", "10.95.76.12", "10.95.76.13"]
 STREAM_PORT_BASE = "50"
 
 PIPELINE_FPS = 30
-VIDEO_FPS = 10
+VIDEO_FPS = 15
 
 
 def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):

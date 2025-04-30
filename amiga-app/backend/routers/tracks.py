@@ -7,6 +7,7 @@ from pathlib import Path
 from backend.config import *
 from pydantic import BaseModel
 import signal
+import os
 
 router = APIRouter()
 

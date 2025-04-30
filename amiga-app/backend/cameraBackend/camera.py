@@ -113,7 +113,7 @@ class Camera:
             name="depth", maxSize=10, blocking=False  # pyright: ignore[reportCallIssue]
         )
         self._video_queue: dai.DataOutputQueue = self._device.getOutputQueue(
-            name="video", maxSize=1, blocking=False  # pyright: ignore[reportCallIssue]
+            name="video", maxSize=5, blocking=False  # pyright: ignore[reportCallIssue]
         )
         self._sync_queue = SyncQueue(["image", "depth"])
 
@@ -162,7 +162,7 @@ class Camera:
         calibration = self._device.readCalibration()
         intrinsics = calibration.getCameraIntrinsics(
             # TODO: Figure out if this is the correct socket
-            dai.CameraBoardSocket.RGB,
+            dai.CameraBoardSocket.CAM_C,
             dai.Size2f(*self.image_size),  # type: ignore
         )
 
@@ -207,20 +207,21 @@ class Camera:
         video_enc.bitstream.link(xout_video.input)
 
         # Time‐of‐flight / depth pipeline
-        # Create ToF config
-        xin_tof_cfg = pipeline.create(dai.node.XLinkIn)
-        xin_tof_cfg.setStreamName("tofConfig")
-
         tof = pipeline.create(dai.node.ToF)
-
-        xin_tof_cfg.out.link(tof.inputConfig)
-
         # Apply ToF settings
         cfg = tof.initialConfig.get()
         cfg.enableOpticalCorrection = True
         cfg.enablePhaseShuffleTemporalFilter = True
         cfg.phaseUnwrappingLevel = 1
         cfg.phaseUnwrapErrorThreshold = 200
+
+        # Create ToF config
+        xin_tof_cfg = pipeline.create(dai.node.XLinkIn)
+        xin_tof_cfg.setStreamName("tofConfig")
+
+
+        xin_tof_cfg.out.link(tof.inputConfig)
+
         tof.initialConfig.set(cfg)
 
         # Raw ToF camera feed
@@ -235,7 +236,8 @@ class Camera:
         tof.depth.link(xout_depth.input)
 
         # RGB camera
-        cam_rgb = pipeline.createColorCamera()
+        # cam_rgb = pipeline.createColorCamera()
+        cam_rgb = pipeline.create(dai.node.ColorCamera)
         cam_rgb.setBoardSocket(dai.CameraBoardSocket.CAM_C)
         cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_800_P)
         cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
@@ -283,6 +285,10 @@ class Camera:
         point_cloud = o3d.geometry.PointCloud.create_from_rgbd_image(
             rgbd_image, self.pinhole_camera_intrinsic, self.world_to_cam
         )
+
+        print(depth_frame)
+        print(rgb_o3d)
+        print(len(point_cloud.points))
 
         if downsample:
             point_cloud = point_cloud.voxel_down_sample(voxel_size=0.01)
@@ -335,7 +341,7 @@ class Camera:
             ("", self.stream_port),
             self.make_handler(self._video_queue)
         )
-        print(f"Starting RGB stream at {self._camera_ip}:{self.stream_port}")
+        print(f"Starting RGB stream at 127.0.0.1:{self.stream_port}")
         self._http_streaming_server.serve_forever()
         self._http_streaming_server.server_close()
-        print(f"RGB stream at {self._camera_ip}:{self.stream_port} stopped")
+        print(f"RGB stream at 127.0.0.1:{self.stream_port} stopped")
