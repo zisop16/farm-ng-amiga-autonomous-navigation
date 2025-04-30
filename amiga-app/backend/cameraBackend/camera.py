@@ -117,9 +117,9 @@ class Camera:
 
         self._device_info = device_info
 
-        self._video_queue: dai.DataOutputQueue = self._device.getOutputQueue(
-            name="video", maxSize=5, blocking=False  # pyright: ignore[reportCallIssue]
-        )
+        # self._video_queue: dai.DataOutputQueue = self._device.getOutputQueue(
+        #     name="video", maxSize=5, blocking=False  # pyright: ignore[reportCallIssue]
+        # )
 
         self.output_queue = self._device.getOutputQueue(
             name="out", maxSize=4, blocking=False
