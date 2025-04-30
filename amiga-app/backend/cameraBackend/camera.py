@@ -117,24 +117,15 @@ class Camera:
 
         self._device_info = device_info
 
-        self._image_queue: dai.DataOutputQueue = self._device.getOutputQueue(
-            name="image", maxSize=10, blocking=False  # pyright: ignore[reportCallIssue]
-        )
-        self._depth_queue: dai.DataOutputQueue = self._device.getOutputQueue(
-            name="depth", maxSize=10, blocking=False  # pyright: ignore[reportCallIssue]
-        )
         self._video_queue: dai.DataOutputQueue = self._device.getOutputQueue(
             name="video", maxSize=5, blocking=False  # pyright: ignore[reportCallIssue]
         )
-        self._sync_queue = SyncQueue(["image", "depth"])
 
         self.output_queue = self._device.getOutputQueue(
             name="out", maxSize=4, blocking=False
         )
         self.output_queue.addCallback(self.testPrint)
 
-        self._image_frame = None
-        self._depth_frame = None
         self.point_cloud = o3d.geometry.PointCloud()
 
         self._load_calibration()
@@ -142,19 +133,19 @@ class Camera:
         print("=== Connected to " + self._device_info.name)
 
         # Start streams as seperate thread
-        self._http_streaming_server = None
-        self.streamingServerThread = threading.Thread(
-            target=self.start_streaming_server, daemon=True
-        )
-        self.streamingServerThread.start()
-        print(f"Starting streaming server for camera {device_info.name}")
+        # self._http_streaming_server = None
+        # self.streamingServerThread = threading.Thread(
+        #     target=self.start_streaming_server, daemon=True
+        # )
+        # self.streamingServerThread.start()
+        # print(f"Starting streaming server for camera {device_info.name}")
 
     def shutdown(self):
         if self._http_streaming_server:
             print("Shutting down HTTP server...")
             self._http_streaming_server.shutdown()
-        if self.streamingServerThread.is_alive():
-            self.streamingServerThread.join(timeout=5)
+        # if self.streamingServerThread.is_alive():
+        #     self.streamingServerThread.join(timeout=5)
         self._device.close()
         print("=== Closed " + self._device_info.name)
 
@@ -252,9 +243,7 @@ class Camera:
         sync.out.link(out.input)
         out.setStreamName("out")
 
-        # pipeline = dai.Pipeline()
-        #
-        # # Video encoder (MJPEG) for frontend
+        # Video encoder (MJPEG) for frontend
         # video_enc = pipeline.create(dai.node.VideoEncoder)
         # video_enc.setDefaultProfilePreset(
         #     self.PIPELINE_FPS, dai.VideoEncoderProperties.Profile.MJPEG
@@ -312,7 +301,7 @@ class Camera:
         # xout_image = pipeline.createXLinkOut()
         # xout_image.setStreamName("image")
         # cam_rgb.isp.link(xout_image.input)
-        # cam_rgb.video.link(video_enc.input)
+        # camRgb.video.link(video_enc.input)
 
         # self.image_size = cam_rgb.getIspSize()
         self.image_size = camRgb.getIspSize()
@@ -346,10 +335,10 @@ class Camera:
         self.point_cloud.points = o3d.utility.Vector3dVector(points)
         colors = (cvRGBFrame.reshape(-1, 3) / 255.0).astype(np.float64)
         self.point_cloud.colors = o3d.utility.Vector3dVector(colors)
-        o3d.io.write_point_cloud(
-            f"{datetime.datetime.now()}.ply",
-            self.point_cloud,
-        )
+        # o3d.io.write_point_cloud(
+        #     f"{datetime.datetime.now()}.ply",
+        #     self.point_cloud,
+        # )
 
     def _rgbd_to_point_cloud(
         self, depth_frame, image_frame, downsample=False, remove_noise=False
