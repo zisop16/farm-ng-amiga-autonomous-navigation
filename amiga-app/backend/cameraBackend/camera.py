@@ -4,10 +4,12 @@
 
 import sys
 import os
+import time
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from multiprocessing import Process, Queue
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+import threading
 import depthai as dai
 import cv2
 import numpy as np
@@ -87,12 +89,6 @@ class Camera:
             Gracefully terminates the streaming server process and closes the device.
     """
 
-    def _updateVideoQueue(self, frame: dai.Buffer):
-        # Check if full first before manipulating data
-        if not self.server_stream_queue.full():
-            jpeg_bytes = frame.getData().tobytes()
-            self.server_stream_queue.put(jpeg_bytes, block=False)
-
     def __init__(
         self,
         device_info: dai.DeviceInfo,
@@ -119,8 +115,6 @@ class Camera:
         self._video_queue: dai.DataOutputQueue = self._device.getOutputQueue(
             name="video", maxSize=1, blocking=False  # pyright: ignore[reportCallIssue]
         )
-        self._video_queue.addCallback(self._updateVideoQueue)
-        self.server_stream_queue = Queue(maxsize=1)  # Queue for IPC
         self._sync_queue = SyncQueue(["image", "depth"])
 
         self._image_frame = None
@@ -131,20 +125,20 @@ class Camera:
 
         print("=== Connected to " + self._device_info.name)
 
-        # Start streams as seperate processes
-        self.streamingServer = Process(
-            target=startStreamingServer,
-            daemon=True,
-            args=(self.server_stream_queue, VIDEO_FPS, stream_port),
-            name=f"{self._camera_ip}-stream",
-        )
-        self.streamingServer.start()
+        # Start streams as seperate thread
+        self._http_streaming_server = None
+        self.streamingServerThread = threading.Thread(target=self.start_streaming_server, daemon=True)
+        self.streamingServerThread.start()
         print(
-            f"Starting streaming server for camera {device_info.name} with PID {self.streamingServer.pid}"
+            f"Starting streaming server for camera {device_info.name}"
         )
 
     def shutdown(self):
-        self.streamingServer.terminate()
+        if self._http_streaming_server:
+            print("Shutting down HTTP server...")
+            self._http_streaming_server.shutdown()
+        if self.streamingServerThread.is_alive():
+            self.streamingServerThread.join(timeout=5)
         self._device.close()
         print("=== Closed " + self._device_info.name)
 
@@ -310,3 +304,37 @@ class Camera:
         self.point_cloud.transform(self.alignment)
 
         return self.point_cloud
+    
+    def make_handler(self, frame_queue: dai.DataOutputQueue):
+        delay = 1 / self.VIDEO_FPS
+        class MJPEGHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path == '/rgb':
+                    try:
+                        self.send_response(200)
+                        self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=--jpgboundary')
+                        self.end_headers()
+                        while True:
+                            frame = frame_queue.get().getData().tobytes()
+                            boundary = b"--jpgboundary\r\n"
+                            header   = (
+                                b"Content-Type: image/jpeg\r\n"
+                                b"Content-Length: " + str(len(frame)).encode() + b"\r\n\r\n"
+                            )
+                            self.wfile.write(boundary + header + frame + b"\r\n")
+                            self.wfile.flush()
+                            # time.sleep(delay)
+
+                    except Exception as ex:
+                        return
+        return MJPEGHandler
+
+    def start_streaming_server(self):
+        self._http_streaming_server = ThreadingHTTPServer(
+            ("", self.stream_port),
+            self.make_handler(self._video_queue)
+        )
+        print(f"Starting RGB stream at {self._camera_ip}:{self.stream_port}")
+        self._http_streaming_server.serve_forever()
+        self._http_streaming_server.server_close()
+        print("RGB stream at {self._camera_ip}:{self.stream_port} stopped")
