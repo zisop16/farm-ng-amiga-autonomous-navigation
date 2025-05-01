@@ -11,7 +11,7 @@ from farm_ng.track.track_pb2 import (
     TrackFollowRequest,
     TrackFollowerState,
     TrackStatusEnum,
-    TrackFollowerProgress
+    TrackFollowerProgress,
 )
 from farm_ng.filter.filter_pb2 import FilterState
 from farm_ng_core_pybind import Isometry3F64
@@ -41,6 +41,7 @@ from backend.robot_utils import walk_towards, format_track
 
 router = APIRouter()
 
+
 async def get_pose(filter_client: EventClient) -> Pose3F64:
     """Get the current pose of the robot in the world frame, from the filter service.
 
@@ -48,8 +49,11 @@ async def get_pose(filter_client: EventClient) -> Pose3F64:
         filter_client: EventClient for the filter service
     """
     # We use the FilterState as the best source of the current pose of the robot
-    state: FilterState = await filter_client.request_reply("/get_state", Empty(), decode=True)
+    state: FilterState = await filter_client.request_reply(
+        "/get_state", Empty(), decode=True
+    )
     return Pose3F64.from_proto(state.pose)
+
 
 @router.get("/line/list")
 async def list_lines(request: Request):
@@ -59,6 +63,7 @@ async def list_lines(request: Request):
     line_names = [f[:-5] for f in os.listdir(LINES_DIR) if f.endswith(".json")]
 
     return {"lines": line_names}
+
 
 @router.post("/line/record/start/{track_name}")
 async def start_recording(request: Request, track_name: str):
@@ -74,6 +79,7 @@ async def start_recording(request: Request, track_name: str):
 
     return {"message": f"Recording started for track '{track_name}'."}
 
+
 @router.post("/line/end_creation")
 async def end_creation(request: Request):
     vars: StateVars = request.state.vars
@@ -81,12 +87,11 @@ async def end_creation(request: Request):
     vars.turn_calibrating = False
 
 
-
 ###stop###
 @router.post("/line/record/stop")
 async def stop_recording(request: Request):
     """Stops the recording process."""
-    
+
     vars: StateVars = request.state.vars
     if not vars.line_recording:
         return {"error": "No recording in progress."}
@@ -94,6 +99,7 @@ async def stop_recording(request: Request):
     client = request.state.event_manager.clients["filter"]
     vars.line_end = np.array((await get_pose(client)).translation[:2])
     return {"message": "Recording stopped successfully."}
+
 
 @router.post("/line/calibrate_turn/start")
 async def calibrate_turn(request: Request):
@@ -106,12 +112,14 @@ async def calibrate_turn(request: Request):
     vars.turn_calibrating = True
     return {"message": "Turn calibration started."}
 
+
 @router.post("/line/calibrate_turn/segment")
 async def add_turn_segment(request: Request):
     vars: StateVars = request.state.vars
     if not vars.turn_calibrating:
         return {"error": "Turn calibration is not active."}
     vars.turn_calibration_segments += 1
+
 
 @router.post("/line/calibrate_turn/end")
 async def end_turn_calibration(request: Request):
@@ -133,34 +141,41 @@ async def end_turn_calibration(request: Request):
     line_data = {
         "start": vars.line_start.tolist(),
         "end": vars.line_end.tolist(),
-        "turn_length": turn_length
+        "turn_length": turn_length,
     }
     json_text = json.dumps(line_data)
     output_dir = Path(LINES_DIR)
     json_path = output_dir / f"{vars.line_recording}.json"
-    with open(json_path, 'w') as line_file:
+    with open(json_path, "w") as line_file:
         line_file.write(json_text)
 
     vars.line_recording = None
 
     return {"message": "Turn calibration complete."}
 
+
 class LineFollowData(BaseModel):
     num_rows: int
     first_turn_right: bool
+
+
 @router.post("/line/follow/{line_name}")
-async def follow_line(request: Request, line_name: str, data: LineFollowData, background_tasks: BackgroundTasks):
+async def follow_line(
+    request: Request,
+    line_name: str,
+    data: LineFollowData,
+    background_tasks: BackgroundTasks,
+):
     vars: StateVars = request.state.vars
-    if (vars.following_track):
+    if vars.following_track:
         return {"error": "Line is currently being followed"}
-    
-    
+
     line_path = Path(LINES_DIR) / f"{line_name}.json"
-    
+
     if not line_path.exists():
         return {"error": f"Track: '{line_name} does not exist"}
 
-    with open(line_path, 'r') as line_file:
+    with open(line_path, "r") as line_file:
         line_data = json.loads(line_file.read())
     line_start = np.array(line_data["start"])
     line_end = np.array(line_data["end"])
@@ -174,24 +189,29 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
     filter_client = event_manager.clients["filter"]
 
     current_pose = await get_pose(filter_client)
-    current_pose = current_pose * Pose3F64(a_from_b=Isometry3F64(), frame_a="robot", frame_b="goal0")
+    current_pose = current_pose * Pose3F64(
+        a_from_b=Isometry3F64(), frame_a="robot", frame_b="goal0"
+    )
     goal_counter = 1
     total_path: list[Pose3F64] = [current_pose]
     current_path, _ = walk_towards(current_pose, line_start, goal_counter)
     total_path.extend(current_path)
     row_indices: list[tuple[int, int]] = []
     goal_counter += 2
+
     def _current_pose():
         return total_path[-1]
 
     walking_forward = True
-    
+
     line_delta = line_end - line_start
     while remaining_rows > 0:
         current_position = np.array(_current_pose().translation[:2])
         delta = line_delta if walking_forward else -line_delta
         target_position = current_position + delta
-        current_path, rotate_cutoff = walk_towards(_current_pose(), target_position, goal_counter)
+        current_path, rotate_cutoff = walk_towards(
+            _current_pose(), target_position, goal_counter
+        )
         # rotate_index = Index of the 1st waypoint where the robot begins walking along the row
         rotate_index = len(total_path) + rotate_cutoff
         total_path.extend(current_path)
@@ -204,16 +224,24 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
         current_position = np.array(_current_pose().translation[:2])
         # This vector faces a 90 degree clockwise rotation of line_delta
         forward_right_direction = np.array([line_delta[1], -line_delta[0]])
-        forward_right_direction = forward_right_direction / np.linalg.norm(forward_right_direction)
+        forward_right_direction = forward_right_direction / np.linalg.norm(
+            forward_right_direction
+        )
         # The vector direction of each turn is always the same, because the robot is always moving towards either the right or left side of the field
-        turn_direction = forward_right_direction if data.first_turn_right else -forward_right_direction
+        turn_direction = (
+            forward_right_direction
+            if data.first_turn_right
+            else -forward_right_direction
+        )
         turn_vector = turn_direction * turn_length
         target_position = current_position + turn_vector
-        current_path, rotate_cutoff = walk_towards(_current_pose(), target_position, goal_counter)
+        current_path, rotate_cutoff = walk_towards(
+            _current_pose(), target_position, goal_counter
+        )
         rotate_index = len(total_path) + rotate_cutoff
         total_path.extend(current_path)
         goal_counter += 2
-        
+
         walking_forward = not walking_forward
         remaining_rows -= 1
 
@@ -224,11 +252,25 @@ async def follow_line(request: Request, line_name: str, data: LineFollowData, ba
     await track_client.request_reply("/start", Empty())
     vars.following_track = True
 
-    background_tasks.add_task(handle_image_capture, vars, request.state.camera_msg_queue, track_client, line_name, row_indices)
+    background_tasks.add_task(
+        handle_image_capture,
+        vars,
+        request.state.camera_msg_queue,
+        track_client,
+        line_name,
+        row_indices,
+    )
 
     return {"message": "Line follow started"}
 
-async def handle_image_capture(vars: StateVars, camera_msg_queue: Queue, client: EventClient, line_name: str, row_indices: list[tuple[int, int]]):
+
+async def handle_image_capture(
+    vars: StateVars,
+    camera_msg_queue: Queue,
+    client: EventClient,
+    line_name: str,
+    row_indices: list[tuple[int, int]],
+):
     """_summary_
 
     Args:
@@ -238,8 +280,8 @@ async def handle_image_capture(vars: StateVars, camera_msg_queue: Queue, client:
     """
     current_row_number = -1
     last_image_capture = 0
-    initial_distance_offset = .8
-    distance_between_images = 1.
+    initial_distance_offset = 0.8
+    distance_between_images = 1.0
 
     vars.track_follow_id += 1
     track_follow_id = vars.track_follow_id
@@ -249,14 +291,15 @@ async def handle_image_capture(vars: StateVars, camera_msg_queue: Queue, client:
         SubscribeRequest(
             uri=Uri(path=f"/state", query=f"service_name=track_follower"),
             every_n=1,
-        ), decode=True
+        ),
+        decode=True,
     ):
         if track_follow_id != vars.track_follow_id:
             print("Exiting old loop")
             break
         state: TrackFollowerState = message
         track_status = state.status.track_status
-    
+
         if track_status == TrackStatusEnum.TRACK_PAUSED:
             pass
         else:
@@ -280,22 +323,24 @@ async def handle_image_capture(vars: StateVars, camera_msg_queue: Queue, client:
                 else:
                     distance_travelled = last_image_capture - dist_remaining
                     if distance_travelled > distance_between_images:
-                        print(f"Travelled a distance of {distance_travelled} meters. Capturing image")
+                        print(
+                            f"Travelled a distance of {distance_travelled} meters. Capturing image"
+                        )
                         last_image_capture = dist_remaining
                         await client.request_reply("/pause", Empty())
-                        await capture_image(camera_msg_queue, line_name, current_row_number, capture_number)
+                        await capture_image(
+                            camera_msg_queue,
+                            line_name,
+                            current_row_number,
+                            capture_number,
+                        )
                         capture_number += 1
                         await client.request_reply("/resume", Empty())
 
 
 async def capture_image(
-    camera_msg_queue: Queue,
-    line_name: str,
-    row_number: int,
-    capture_number: int
+    camera_msg_queue: Queue, line_name: str, row_number: int, capture_number: int
 ):
-    await asyncio.sleep(3)
-    return
     msg = {
         "action": "save_point_cloud",
         "line_name": line_name,
@@ -304,8 +349,8 @@ async def capture_image(
     }
 
     camera_msg_queue.put(msg)
-
-    
+    await asyncio.sleep(3)
+    return
 
 
 @router.post("/line/delete/{track_name}")
@@ -315,14 +360,17 @@ async def delete_track(track_name):
     try:
         json_path.unlink()
     except FileNotFoundError:
-        return { "error": f"Track: '{track_name}' does not exist"}
+        return {"error": f"Track: '{track_name}' does not exist"}
 
-    return { "message": f"Track: '{track_name}' deleted" }
+    return {"message": f"Track: '{track_name}' deleted"}
+
 
 # Define Pydantic model for request data
 class Edit(BaseModel):
     current_name: str
     new_name: str
+
+
 # Only one definition of the endpoint
 @router.post("/line/edit")
 async def edit_line_name(body: Edit):
@@ -334,14 +382,15 @@ async def edit_line_name(body: Edit):
 
     # Check if the current track file exists
     if not os.path.exists(line_path):
-        return { "error": f"Track: '{current_name}' does not exist"}
-    
+        return {"error": f"Track: '{current_name}' does not exist"}
+
     # Check if the new track name already exists
     if os.path.exists(new_line_path):
-        return { "error": f"Track: '{new_name}' already exists"}
-    
+        return {"error": f"Track: '{new_name}' already exists"}
+
     os.rename(line_path, new_line_path)
     return {"message": f"Track: '{current_name}' renamed to: '{new_name}'."}
+
 
 @router.get("/line/get_start/{line_name}")
 async def get_start(line_name: str):
@@ -354,6 +403,3 @@ async def get_start(line_name: str):
     with open(line_path, "r") as json_file:
         line_data = json.loads(json_file.read())
     return {"start_position": line_data["start"]}
-
-
-

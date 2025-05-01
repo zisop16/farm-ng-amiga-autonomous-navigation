@@ -11,13 +11,9 @@ import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-import threading
 import depthai as dai
-import cv2
 import numpy as np
 import open3d as o3d
-from .syncQueue import SyncQueue
-from .streamingServer import startStreamingServer
 
 from config import CALIBRATION_DATA_DIR
 
@@ -91,13 +87,6 @@ class Camera:
             Gracefully terminates the streaming server process and closes the device.
     """
 
-    temp = False
-    def testPrint(self):
-        print("adding frame")
-        if self.temp == False:
-            self.update()
-            self.temp = True
-
     def __init__(
         self,
         device_info: dai.DeviceInfo,
@@ -124,7 +113,6 @@ class Camera:
         self.output_queue = self._device.getOutputQueue(
             name="out", maxSize=4, blocking=False
         )
-        self.output_queue.addCallback(self.testPrint)
 
         self.point_cloud = o3d.geometry.PointCloud()
 
@@ -141,9 +129,9 @@ class Camera:
         # print(f"Starting streaming server for camera {device_info.name}")
 
     def shutdown(self):
-        if self._http_streaming_server:
-            print("Shutting down HTTP server...")
-            self._http_streaming_server.shutdown()
+        # if self._http_streaming_server:
+        #     print("Shutting down HTTP server...")
+        #     self._http_streaming_server.shutdown()
         # if self.streamingServerThread.is_alive():
         #     self.streamingServerThread.join(timeout=5)
         self._device.close()
@@ -161,32 +149,39 @@ class Camera:
             extrinsics = np.load(path)
             self.cam_to_world = extrinsics["cam_to_world"]
             self.world_to_cam = extrinsics["world_to_cam"]
+            print(f"Calibration data for camera {self._camera_ip} loaded successfully.")
         except:
             # TODO: figure out how to handle b/c calibration data is mandatory
             # raise RuntimeError(f"Could not load calibration data for camera {self.camera_ip} from {path}!")
-            print("No extrinsic calibration data for camera")
+            print(
+                f"ERROR: No extrinsic calibration data for camera {self._camera_ip} found."
+            )
 
-        calibration = self._device.readCalibration()
-        intrinsics = calibration.getCameraIntrinsics(
-            # TODO: Figure out if this is the correct socket
-            dai.CameraBoardSocket.CAM_C,
-            dai.Size2f(*self.image_size),  # type: ignore
-        )
+        # calibration = self._device.readCalibration()
+        # intrinsics = calibration.getCameraIntrinsics(
+        #     # TODO: Figure out if this is the correct socket
+        #     dai.CameraBoardSocket.CAM_C,
+        #     dai.Size2f(*self.image_size),  # type: ignore
+        # )
 
-        self.pinhole_camera_intrinsic = o3d.camera.PinholeCameraIntrinsic(
-            *self.image_size,
-            intrinsics[0][0],
-            intrinsics[1][1],
-            intrinsics[0][2],
-            intrinsics[1][2],
-        )
+        # self.pinhole_camera_intrinsic = o3d.camera.PinholeCameraIntrinsic(
+        #     *self.image_size,
+        #     intrinsics[0][0],
+        #     intrinsics[1][1],
+        #     intrinsics[0][2],
+        #     intrinsics[1][2],
+        # )
 
         try:
             self.alignment = np.load(
                 f"{CALIBRATION_DATA_DIR}/alignment_{self._camera_ip}.npy"
             )
+            print(f"Alignment data for camera {self._camera_ip} loaded successfully.")
         except:
+            print(f"WARNING: No alignment data for camera {self._camera_ip} found.")
             self.alignment = np.eye(4)  # Default to no alignment correction
+
+        self.transform_matrix = self.cam_to_world @ self.alignment
 
         # print(self.pinhole_camera_intrinsic)
 
@@ -194,6 +189,7 @@ class Camera:
         np.save(
             f"{CALIBRATION_DATA_DIR}/alignment_{self._camera_ip}.npy", self.alignment
         )
+        print(f"Saved alignment for camera {self._camera_ip}.")
 
     def _create_pipeline(self):
         pipeline = dai.Pipeline()
@@ -322,64 +318,81 @@ class Camera:
         # self._image_frame = frame_sync["image"].getCvFrame()
         # rgb = cv2.cvtColor(self._image_frame, cv2.COLOR_BGR2RGB)
         # self._rgbd_to_point_cloud(self._depth_frame, rgb)
-        inMessage = self.output_queue.get()  # type: ignore
-        inColor = inMessage["rgb"]  # type: ignore
-        inPointCloud = inMessage["pcl"]  # type: ignore
-        cvColorFrame = inColor.getCvFrame()
-        # Convert the frame to RGB
-        cvRGBFrame = cv2.cvtColor(cvColorFrame, cv2.COLOR_BGR2RGB)
-        points = inPointCloud.getPoints().astype(np.float64)
-        points[:, 0] = -points[:, 0]  # Invert X axis
-        # points[:, 1] = -points[:, 1]  # Invert Y axis
-        # points[:, 2] = points[:, 2] / 1000.0  # Convert Z axis from mm to meters (if needed)
-        self.point_cloud.points = o3d.utility.Vector3dVector(points)
-        colors = (cvRGBFrame.reshape(-1, 3) / 255.0).astype(np.float64)
-        self.point_cloud.colors = o3d.utility.Vector3dVector(colors)
-        # o3d.io.write_point_cloud(
-        #     f"{datetime.datetime.now()}.ply",
-        #     self.point_cloud,
-        # )
 
-    def _rgbd_to_point_cloud(
-        self, depth_frame, image_frame, downsample=False, remove_noise=False
-    ):
-        depth_frame = depth_frame[:400, :]  # TODO: Check if this is correct
-        rgb_o3d = o3d.geometry.Image(image_frame)
-        df = np.copy(depth_frame).astype(np.float32)
-        # df -= 20
-        depth_o3d = o3d.geometry.Image(df)
-        rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            rgb_o3d, depth_o3d, convert_rgb_to_intensity=(len(image_frame.shape) != 3)
-        )
+        output_packet = self.output_queue.get()
+        cv_frame = output_packet["rgb"].getCvFrame()  # type: ignore
+        raw_points = output_packet["pcl"].getPoints()  # type: ignore
 
-        point_cloud = o3d.geometry.PointCloud.create_from_rgbd_image(
-            rgbd_image, self.pinhole_camera_intrinsic, self.world_to_cam
-        )
+        # Use float64 and flip Z axis
+        processed_points = raw_points.astype(np.float64)
+        processed_points[:, 2] *= -1.0
 
-        print(depth_frame)
-        print(rgb_o3d)
-        print(len(point_cloud.points))
+        if len(self.point_cloud.points) != processed_points.shape[0]:
+            # Allocate point cloud points buffer
+            self.point_cloud.points = o3d.utility.Vector3dVector(processed_points)
+        else:
+            # Update normally
+            np.asarray(self.point_cloud.points)[:] = processed_points
 
-        if downsample:
-            point_cloud = point_cloud.voxel_down_sample(voxel_size=0.01)
+        h, w = cv_frame.shape[:2]
+        num_px = h * w
 
-        if remove_noise:
-            point_cloud = point_cloud.remove_statistical_outlier(
-                nb_neighbors=30, std_ratio=0.1
-            )[0]
+        if len(self.point_cloud.colors) != num_px:
+            # Allocate point cloud colors buffer
+            # swap from BGR to RGB, then reshape, then normalize
+            rgb = cv_frame[..., ::-1].reshape(-1, 3).astype(np.float64) * (1.0 / 255)
+            self.point_cloud.colors = o3d.utility.Vector3dVector(rgb)
+        else:
+            # Update normally
+            cols = np.asarray(self.point_cloud.colors)
+            # copy data over instead of remaking buffer
+            cols[:, 0] = cv_frame[..., 2].ravel()  # R
+            cols[:, 1] = cv_frame[..., 1].ravel()  # G
+            cols[:, 2] = cv_frame[..., 0].ravel()  # B
+            cols *= 1.0 / 255.0  # normalize
 
-        self.point_cloud.points = point_cloud.points
-        self.point_cloud.colors = point_cloud.colors
+        self.point_cloud.transform(self.transform_matrix)
 
-        # correct upside down z axis
-        T = np.eye(4)
-        T[2, 2] = -1
-        self.point_cloud.transform(T)
-
-        # apply point cloud alignment transform
-        self.point_cloud.transform(self.alignment)
-
-        return self.point_cloud
+    # def _rgbd_to_point_cloud(
+    #     self, depth_frame, image_frame, downsample=False, remove_noise=False
+    # ):
+    #     depth_frame = depth_frame[:400, :]  # TODO: Check if this is correct
+    #     rgb_o3d = o3d.geometry.Image(image_frame)
+    #     df = np.copy(depth_frame).astype(np.float32)
+    #     # df -= 20
+    #     depth_o3d = o3d.geometry.Image(df)
+    #     rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
+    #         rgb_o3d, depth_o3d, convert_rgb_to_intensity=(len(image_frame.shape) != 3)
+    #     )
+    #
+    #     point_cloud = o3d.geometry.PointCloud.create_from_rgbd_image(
+    #         rgbd_image, self.pinhole_camera_intrinsic, self.world_to_cam
+    #     )
+    #
+    #     print(depth_frame)
+    #     print(rgb_o3d)
+    #     print(len(point_cloud.points))
+    #
+    #     if downsample:
+    #         point_cloud = point_cloud.voxel_down_sample(voxel_size=0.01)
+    #
+    #     if remove_noise:
+    #         point_cloud = point_cloud.remove_statistical_outlier(
+    #             nb_neighbors=30, std_ratio=0.1
+    #         )[0]
+    #
+    #     self.point_cloud.points = point_cloud.points
+    #     self.point_cloud.colors = point_cloud.colors
+    #
+    #     # correct upside down z axis
+    #     T = np.eye(4)
+    #     T[2, 2] = -1
+    #     self.point_cloud.transform(T)
+    #
+    #     # apply point cloud alignment transform
+    #     self.point_cloud.transform(self.alignment)
+    #
+    #     return self.point_cloud
 
     def make_handler(self, frame_queue: dai.DataOutputQueue):
         delay = 1 / self.VIDEO_FPS
@@ -395,7 +408,7 @@ class Camera:
                         )
                         self.end_headers()
                         while True:
-                            frame = frame_queue.get().getData().tobytes()
+                            frame = frame_queue.get().getData().tobytes()  # type: ignore
                             print("streaming frame")
                             boundary = b"--jpgboundary\r\n"
                             header = (

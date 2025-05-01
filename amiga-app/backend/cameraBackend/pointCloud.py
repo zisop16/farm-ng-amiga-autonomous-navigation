@@ -3,6 +3,7 @@
 
 
 import datetime
+from time import sleep
 from typing import List
 
 import numpy as np
@@ -76,19 +77,21 @@ class PointCloudFusion:
             camera.alignment = np.identity(4)
             camera.save_point_cloud_alignment()
 
-    def save_point_cloud(self):
+    def save_point_cloud(self, line_name, row_number, capture_number):
         for camera in self._cameras:
             camera.update()
             o3d.io.write_point_cloud(
-                f"{self._POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_{camera._camera_ip}.ply",
+                # f"{self._POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_{camera._camera_ip}.ply",
+                f"{self._POINTCLOUD_DATA_DIR}/{line_name}/row_{row_number}/capture_{capture_number}/{camera._camera_ip}.ply",
                 camera.point_cloud,
             )
 
         fused_point_cloud = self._cameras[0].point_cloud + self._cameras[1].point_cloud
         o3d.io.write_point_cloud(
-            f"{self._POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_fused.ply",
+            f"{self._POINTCLOUD_DATA_DIR}/{line_name}/row_{row_number}/capture_{capture_number}/combined.ply",
             fused_point_cloud,
         )
+        print("Saved point cloud")
 
     def get_point_cloud(self) -> o3d.geometry.PointCloud:
         for camera in self._cameras:

@@ -92,7 +92,7 @@ def startCameras(queue: Queue, POINTCLOUD_DATA_DIR: str):
                     line_name = msg.get("line_name", "X")
                     row_number = msg.get("row_number", "X")
                     capture_number = msg.get("capture_number", "X")
-                    pointCloudFusion.save_point_cloud()
+                    pointCloudFusion.save_point_cloud(line_name, row_number, capture_number)
                 else:
                     print(f"Unknown message: {msg}")
                     continue
