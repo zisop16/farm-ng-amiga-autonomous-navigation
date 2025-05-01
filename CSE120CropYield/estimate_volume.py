@@ -63,17 +63,20 @@ def estimate_volume(point_cloud: o3d.geometry.PointCloud) -> tuple[float, float,
 
 if __name__ == '__main__':
     volume_estimates: list[float] = []
-    dirs = sorted(next(os.walk("amigaCameraCode/ToFCameraPLY/CilantroFieldRun2"))[1])
+    pointcloud_directory = "./pointclouds"
+    pointclouds = os.listdir(pointcloud_directory)
 
-    for folder_name in dirs:
-        pc_filename = f"amigaCameraCode/ToFCameraPLY/CilantroFieldRun2/{folder_name}/tof_pointcloud.ply"
-        point_cloud = o3d.io.read_point_cloud(pc_filename)
+    for filename in pointclouds:
+        if not filename.endswith(".ply"):
+            continue
+        pointcloud_path = f"{pointcloud_directory}/{filename}"
+        point_cloud = o3d.io.read_point_cloud(pointcloud_path)
 
         volume_estimate, percent_size_change, point_cloud = estimate_volume(point_cloud)
         volume_estimates.append(volume_estimate)
 
         visual = True
-        
+        print(f"Pointcloud {filename}: Filtered out {percent_size_change} of points, estimated volume {volume_estimate}")
         if visual:
             voxel_size = 2
             voxel_grid = o3d.geometry.VoxelGrid.create_from_point_cloud(point_cloud, voxel_size=voxel_size)
@@ -81,36 +84,3 @@ if __name__ == '__main__':
             vis.create_window(height=800, width=800)
             vis.add_geometry(voxel_grid)
             vis.run()
-
-
-    with open("volumes_estimate.json", "w") as estimate_file:
-        json.dump(volume_estimates, estimate_file)
-    
-
-
-    weights: list[int] = []
-    with open(
-        f"amigaCameraCode/ToFCameraPLY/CilantroFieldRun2/CilantroWeights.csv", "r"
-    ) as f:
-        for line in f:
-            weights.append(int(line.split(",")[1]))
-
-    corr, _ = pearsonr(volume_estimates, weights)
-    corr = round(corr, 4)
-
-    plt.scatter(volume_estimates, weights)
-    plt.xlabel("Volume Estimation (cm^3)")
-    plt.ylabel("Weight (g)")
-    m, b = np.polyfit(volume_estimates, weights, 1)
-    plt.plot(volume_estimates, m * np.array(volume_estimates) + b, color="red")
-
-    average_error = 0.0
-    for i in range(len(weights)):
-        average_error += abs(m * volume_estimates[i] + b - weights[i]) / weights[i]
-    average_error /= len(weights)
-    average_error = round(average_error, 4)
-
-    plt.rc("font", size=8)
-    plt.title(f"Correlation Coefficient: {corr} \nAverage Error: {average_error}")
-    plt.savefig("volume_weight_graph.png")
-    plt.show()
