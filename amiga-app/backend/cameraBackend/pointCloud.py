@@ -82,13 +82,13 @@ class PointCloudFusion:
             camera.update()
             o3d.io.write_point_cloud(
                 # f"{self._POINTCLOUD_DATA_DIR}/{datetime.datetime.now()}_{camera._camera_ip}.ply",
-                f"{self._POINTCLOUD_DATA_DIR}/{line_name}/row_{row_number}/capture_{capture_number}/{camera._camera_ip}.ply",
+                f"{self._POINTCLOUD_DATA_DIR}{line_name}/row_{row_number}/capture_{capture_number}/{camera._camera_ip}.ply",
                 camera.point_cloud,
             )
 
-        fused_point_cloud = self._cameras[0].point_cloud + self._cameras[1].point_cloud
+        fused_point_cloud = self._cameras[0].point_cloud + self._cameras[1].point_cloud + self._cameras[2].point_cloud
         o3d.io.write_point_cloud(
-            f"{self._POINTCLOUD_DATA_DIR}/{line_name}/row_{row_number}/capture_{capture_number}/combined.ply",
+            f"{self._POINTCLOUD_DATA_DIR}{line_name}/row_{row_number}/capture_{capture_number}/combined.ply",
             fused_point_cloud,
         )
         print("Saved point cloud")
@@ -96,5 +96,5 @@ class PointCloudFusion:
     def get_point_cloud(self) -> o3d.geometry.PointCloud:
         for camera in self._cameras:
             camera.update()
-        fused_point_cloud = self._cameras[0].point_cloud + self._cameras[1].point_cloud
+        fused_point_cloud = self._cameras[0].point_cloud + self._cameras[1].point_cloud + self._cameras[2].point_cloud
         return fused_point_cloud

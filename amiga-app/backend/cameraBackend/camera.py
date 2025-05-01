@@ -11,6 +11,7 @@ import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+import cv2
 import depthai as dai
 import numpy as np
 import open3d as o3d
@@ -181,7 +182,9 @@ class Camera:
             print(f"WARNING: No alignment data for camera {self._camera_ip} found.")
             self.alignment = np.eye(4)  # Default to no alignment correction
 
-        self.transform_matrix = self.cam_to_world @ self.alignment
+        flip_z = np.eye(4)
+        flip_z[2, 2] = -1.0
+        self.transform_matrix = self.cam_to_world @ self.alignment @ flip_z
 
         # print(self.pinhole_camera_intrinsic)
 
@@ -320,38 +323,18 @@ class Camera:
         # self._rgbd_to_point_cloud(self._depth_frame, rgb)
 
         output_packet = self.output_queue.get()
-        cv_frame = output_packet["rgb"].getCvFrame()  # type: ignore
-        raw_points = output_packet["pcl"].getPoints()  # type: ignore
 
-        # Use float64 and flip Z axis
-        processed_points = raw_points.astype(np.float64)
-        processed_points[:, 2] *= -1.0
+        rgb = cv2.cvtColor(output_packet["rgb"].getCvFrame(), cv2.COLOR_BGR2RGB)
+        colors = rgb.reshape(-1, 3).astype(np.float64) / 255.0
 
-        if len(self.point_cloud.points) != processed_points.shape[0]:
-            # Allocate point cloud points buffer
-            self.point_cloud.points = o3d.utility.Vector3dVector(processed_points)
-        else:
-            # Update normally
-            np.asarray(self.point_cloud.points)[:] = processed_points
+        raw_points = output_packet["pcl"].getPoints().astype(np.float64)
 
-        h, w = cv_frame.shape[:2]
-        num_px = h * w
+        # R = rotation matrix , t = translation vector
+        R, t = self.transform_matrix[:3, :3], self.transform_matrix[:3, 3]
+        transformed_points = raw_points.dot(R.T) + t
 
-        if len(self.point_cloud.colors) != num_px:
-            # Allocate point cloud colors buffer
-            # swap from BGR to RGB, then reshape, then normalize
-            rgb = cv_frame[..., ::-1].reshape(-1, 3).astype(np.float64) * (1.0 / 255)
-            self.point_cloud.colors = o3d.utility.Vector3dVector(rgb)
-        else:
-            # Update normally
-            cols = np.asarray(self.point_cloud.colors)
-            # copy data over instead of remaking buffer
-            cols[:, 0] = cv_frame[..., 2].ravel()  # R
-            cols[:, 1] = cv_frame[..., 1].ravel()  # G
-            cols[:, 2] = cv_frame[..., 0].ravel()  # B
-            cols *= 1.0 / 255.0  # normalize
-
-        self.point_cloud.transform(self.transform_matrix)
+        self.point_cloud.points = o3d.utility.Vector3dVector(transformed_points)
+        self.point_cloud.colors = o3d.utility.Vector3dVector(colors)
 
     # def _rgbd_to_point_cloud(
     #     self, depth_frame, image_frame, downsample=False, remove_noise=False
