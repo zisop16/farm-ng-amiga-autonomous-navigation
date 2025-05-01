@@ -16,7 +16,7 @@ async def pointcloud_save(request: Request):
         return {"message": "No point cloud directory found."}
 
     queue = request.state.camera_msg_queue
-    queue.put("save_point_cloud")
+    queue.put({"action": "save_point_cloud"})
 
     print("Point cloud saved")
     return {"status": "Point cloud saved"}
@@ -30,7 +30,7 @@ async def pointcloud_align(request: Request):
         return {"message": "No calibration data directory found."}
 
     queue = request.state.camera_msg_queue
-    queue.put("align_point_clouds")
+    queue.put({"action": "align_point_clouds"})
 
     print("Attempting to set camera alignment (Not guranteed successful)")
     return {"status": "Attempting to set camera alignment (Not guranteed successful)"}
@@ -44,7 +44,7 @@ async def pointcloud_reset(request: Request):
         return {"message": "no calibration data directory found."}
 
     queue = request.state.camera_msg_queue
-    queue.put("reset_alignment")
+    queue.put({"action": "reset_alignment"})
 
     print("Resetting camera alignment")
     return {"status": "Camera alignment reset"}

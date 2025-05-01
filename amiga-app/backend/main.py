@@ -48,7 +48,7 @@ from multiprocessing import Process, Queue
 
 from config import *
 
-from routers import tracks, record, follow, linefollow
+from routers import tracks, record, follow, linefollow, pointcloud
 
 from cameraBackend.oakManager import startCameras
 
@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
 
     event_manager = EventClientSubscriptionManager(config_list=service_config_list)
 
-    no_cameras = True
+    no_cameras = False
     if no_cameras:
         oak_manager = None
     else:
@@ -114,6 +114,7 @@ app.include_router(tracks.router)
 app.include_router(record.router)
 app.include_router(follow.router)
 app.include_router(linefollow.router)
+app.include_router(pointcloud.router)
 
 
 def handle_sigterm(signum, frame):
