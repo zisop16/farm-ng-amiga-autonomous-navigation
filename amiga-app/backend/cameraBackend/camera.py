@@ -8,7 +8,6 @@ import time
 from datetime import timedelta
 import datetime
 import threading
-import socket
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -19,6 +18,7 @@ import numpy as np
 import open3d as o3d
 
 from config import CALIBRATION_DATA_DIR
+from config import PORT
 
 
 class Camera:
@@ -114,8 +114,7 @@ class Camera:
         )
 
         self.output_queue = self._device.getOutputQueue(
-            name="out", maxSize=4, blocking=False # pyright: ignore[reportCallIssue]
-
+            name="out", maxSize=4, blocking=False  # pyright: ignore[reportCallIssue]
         )
 
         self.point_cloud = o3d.geometry.PointCloud()
@@ -385,32 +384,43 @@ class Camera:
 
     def make_handler(self, frame_queue: dai.DataOutputQueue):
         class MJPEGHandler(BaseHTTPRequestHandler):
-            def setup(self):
-                super().setup()
-                self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            def do_GET(self):
-                if self.path == "/rgb":
-                    try:
-                        self.send_response(200)
-                        self.send_header(
-                            "Content-type",
-                            "multipart/x-mixed-replace; boundary=--jpgboundary",
-                        )
-                        self.end_headers()
-                        while True:
-                            frame = frame_queue.get().getData().tobytes()  # type: ignore
-                            boundary = b"--jpgboundary\r\n"
-                            header = (
-                                b"Content-Type: image/jpeg\r\n"
-                                b"Content-Length: "
-                                + str(len(frame)).encode()
-                                + b"\r\n\r\n"
-                            )
-                            self.wfile.write(boundary + header + frame + b"\r\n")
-                            self.wfile.flush()
+            def end_headers(self):
+                self.send_header("Access-Control-Allow-Origin", f"http://0.0.0.0:{PORT}")
+                self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.send_header("Access-Control-Allow-Private-Network", "true")
+                super().end_headers()
 
-                    except Exception as ex:
-                        return
+            def do_OPTIONS(self):
+                self.send_response(204)  # No Content
+                self.end_headers()
+
+            def do_GET(self):
+                if self.path != "/rgb":
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+
+                try:
+                    self.send_response(200)
+                    self.send_header(
+                        "Content-Type",
+                        "multipart/x-mixed-replace; boundary=--jpgboundary",
+                    )
+                    self.end_headers()
+
+                    while True:
+                        frame = frame_queue.get().getData().tobytes()  # type: ignore
+                        boundary = b"--jpgboundary\r\n"
+                        header = (
+                            b"Content-Type: image/jpeg\r\n"
+                            b"Content-Length: " + str(len(frame)).encode() + b"\r\n\r\n"
+                        )
+                        self.wfile.write(boundary + header + frame + b"\r\n")
+                        self.wfile.flush()
+
+                except Exception:
+                    return
 
         return MJPEGHandler
 
