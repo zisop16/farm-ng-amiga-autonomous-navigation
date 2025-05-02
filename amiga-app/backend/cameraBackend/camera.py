@@ -7,6 +7,7 @@ import os
 import time
 from datetime import timedelta
 import datetime
+import threading
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -107,12 +108,13 @@ class Camera:
 
         self._device_info = device_info
 
-        # self._video_queue: dai.DataOutputQueue = self._device.getOutputQueue(
-        #     name="video", maxSize=5, blocking=False  # pyright: ignore[reportCallIssue]
-        # )
+        self._video_queue: dai.DataOutputQueue = self._device.getOutputQueue(
+            name="video", maxSize=5, blocking=False  # pyright: ignore[reportCallIssue]
+        )
 
         self.output_queue = self._device.getOutputQueue(
-            name="out", maxSize=4, blocking=False
+            name="out", maxSize=4, blocking=False # pyright: ignore[reportCallIssue]
+
         )
 
         self.point_cloud = o3d.geometry.PointCloud()
@@ -122,19 +124,19 @@ class Camera:
         print("=== Connected to " + self._device_info.name)
 
         # Start streams as seperate thread
-        # self._http_streaming_server = None
-        # self.streamingServerThread = threading.Thread(
-        #     target=self.start_streaming_server, daemon=True
-        # )
-        # self.streamingServerThread.start()
-        # print(f"Starting streaming server for camera {device_info.name}")
+        self._http_streaming_server = None
+        self.streamingServerThread = threading.Thread(
+            target=self.start_streaming_server, daemon=True
+        )
+        self.streamingServerThread.start()
+        print(f"Starting streaming server for camera {device_info.name}")
 
     def shutdown(self):
-        # if self._http_streaming_server:
-        #     print("Shutting down HTTP server...")
-        #     self._http_streaming_server.shutdown()
-        # if self.streamingServerThread.is_alive():
-        #     self.streamingServerThread.join(timeout=5)
+        if self._http_streaming_server:
+            print("Shutting down HTTP server...")
+            self._http_streaming_server.shutdown()
+        if self.streamingServerThread.is_alive():
+            self.streamingServerThread.join(timeout=5)
         self._device.close()
         print("=== Closed " + self._device_info.name)
 
@@ -231,31 +233,33 @@ class Camera:
         sync.setSyncThreshold(timedelta(seconds=(1 / self.PIPELINE_FPS)))
 
         # Linking
-        camRgb.isp.link(sync.inputs["rgb"])
+        camRgb.isp.link(sync.inputs["bgr"])
         camTof.raw.link(tof.input)
         tof.depth.link(align.input)
         # align.outputAligned.link(sync.inputs["depth_aligned"])
         align.outputAligned.link(pointcloud.inputDepth)
-        sync.inputs["rgb"].setBlocking(False)
+        sync.inputs["bgr"].setBlocking(False)
         camRgb.isp.link(align.inputAlignTo)
         pointcloud.outputPointCloud.link(sync.inputs["pcl"])
         sync.out.link(out.input)
         out.setStreamName("out")
 
         # Video encoder (MJPEG) for frontend
-        # video_enc = pipeline.create(dai.node.VideoEncoder)
-        # video_enc.setDefaultProfilePreset(
-        #     self.PIPELINE_FPS, dai.VideoEncoderProperties.Profile.MJPEG
-        # )
-        # video_enc.setFrameRate(self.PIPELINE_FPS)
-        #
-        # # Link video encoder output to XLinkOut("video")
-        # xout_video = pipeline.createXLinkOut()
-        # xout_video.setStreamName("video")
-        # xout_video.setFpsLimit(self.VIDEO_FPS)
-        # xout_video.input.setBlocking(False)
-        # xout_video.input.setQueueSize(1)
-        # video_enc.bitstream.link(xout_video.input)
+        video_enc = pipeline.create(dai.node.VideoEncoder)
+        video_enc.setDefaultProfilePreset(
+            self.PIPELINE_FPS, dai.VideoEncoderProperties.Profile.MJPEG
+        )
+        video_enc.setFrameRate(self.PIPELINE_FPS)
+
+        # Link video encoder output to XLinkOut("video")
+        xout_video = pipeline.createXLinkOut()
+        xout_video.setStreamName("video")
+        xout_video.setFpsLimit(self.VIDEO_FPS)
+        xout_video.input.setBlocking(False)
+        xout_video.input.setQueueSize(1)
+        video_enc.bitstream.link(xout_video.input)
+        camRgb.video.link(video_enc.input)
+
         #
         # # Time‐of‐flight / depth pipeline
         # tof = pipeline.create(dai.node.ToF)
@@ -324,7 +328,7 @@ class Camera:
 
         output_packet = self.output_queue.get()
 
-        rgb = cv2.cvtColor(output_packet["rgb"].getCvFrame(), cv2.COLOR_BGR2RGB)
+        rgb = cv2.cvtColor(output_packet["bgr"].getCvFrame(), cv2.COLOR_BGR2RGB)
         colors = rgb.reshape(-1, 3).astype(np.float64) / 255.0
 
         raw_points = output_packet["pcl"].getPoints().astype(np.float64)

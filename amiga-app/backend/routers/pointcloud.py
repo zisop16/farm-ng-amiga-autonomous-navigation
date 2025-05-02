@@ -18,7 +18,6 @@ async def pointcloud_save(request: Request):
     queue = request.state.camera_msg_queue
     queue.put({"action": "save_point_cloud"})
 
-    print("Point cloud saved")
     return {"status": "Point cloud saved"}
 
 
