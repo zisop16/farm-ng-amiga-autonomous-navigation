@@ -8,6 +8,7 @@ import time
 from datetime import timedelta
 import datetime
 import threading
+import socket
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -109,7 +110,7 @@ class Camera:
         self._device_info = device_info
 
         self._video_queue: dai.DataOutputQueue = self._device.getOutputQueue(
-            name="video", maxSize=5, blocking=False  # pyright: ignore[reportCallIssue]
+            name="video", maxSize=2, blocking=False  # pyright: ignore[reportCallIssue]
         )
 
         self.output_queue = self._device.getOutputQueue(
@@ -258,6 +259,7 @@ class Camera:
         xout_video.input.setBlocking(False)
         xout_video.input.setQueueSize(1)
         video_enc.bitstream.link(xout_video.input)
+        video_enc.setQuality(50)
         camRgb.video.link(video_enc.input)
 
         #
@@ -382,9 +384,10 @@ class Camera:
     #     return self.point_cloud
 
     def make_handler(self, frame_queue: dai.DataOutputQueue):
-        delay = 1 / self.VIDEO_FPS
-
         class MJPEGHandler(BaseHTTPRequestHandler):
+            def setup(self):
+                super().setup()
+                self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             def do_GET(self):
                 if self.path == "/rgb":
                     try:
@@ -396,7 +399,6 @@ class Camera:
                         self.end_headers()
                         while True:
                             frame = frame_queue.get().getData().tobytes()  # type: ignore
-                            print("streaming frame")
                             boundary = b"--jpgboundary\r\n"
                             header = (
                                 b"Content-Type: image/jpeg\r\n"
@@ -406,7 +408,6 @@ class Camera:
                             )
                             self.wfile.write(boundary + header + frame + b"\r\n")
                             self.wfile.flush()
-                            # time.sleep(delay)
 
                     except Exception as ex:
                         return
