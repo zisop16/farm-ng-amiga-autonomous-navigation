@@ -63,13 +63,11 @@ def estimate_volume(point_cloud: o3d.geometry.PointCloud) -> tuple[float, float,
 
 if __name__ == '__main__':
     volume_estimates: list[float] = []
-    pointcloud_directory = "./pointclouds"
+    pointcloud_directory = "./pointclouds/pointclouds/thing2/row_0"
     pointclouds = os.listdir(pointcloud_directory)
 
     for filename in pointclouds:
-        if not filename.endswith(".ply"):
-            continue
-        pointcloud_path = f"{pointcloud_directory}/{filename}"
+        pointcloud_path = f"{pointcloud_directory}/{filename}/combined.ply"
         point_cloud = o3d.io.read_point_cloud(pointcloud_path)
 
         volume_estimate, percent_size_change, point_cloud = estimate_volume(point_cloud)
