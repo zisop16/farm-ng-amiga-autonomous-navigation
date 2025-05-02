@@ -63,7 +63,7 @@ def estimate_volume(point_cloud: o3d.geometry.PointCloud) -> tuple[float, float,
 
 if __name__ == '__main__':
     volume_estimates: list[float] = []
-    pointcloud_directory = "./pointclouds/pointclouds/thing2/row_0"
+    pointcloud_directory = "./pointclouds/maytest/row_0"
     pointclouds = os.listdir(pointcloud_directory)
 
     for filename in pointclouds:
