@@ -84,9 +84,10 @@ async def generate_yield_estimate(line_name: str) -> float:
     row_directories = [f.path for f in os.scandir(pointclouds_dir) if f.is_dir()]
     total_volume = 0
     for row_directory in row_directories:
-        pointcloud_files = os.listdir(row_directory)
-        for pointcloud_filename in pointcloud_files:
-            point_cloud = o3d.io.read_point_cloud(pointcloud_filename)
+        pointcloud_captures = os.listdir(row_directory)
+        for capture_name in pointcloud_captures:
+            pc_file_path = f"{row_directory}/{capture_name}/combined.ply"
+            point_cloud = o3d.io.read_point_cloud(pc_file_path)
             total_volume += estimate_volume(point_cloud)
 
     return m * total_volume + b

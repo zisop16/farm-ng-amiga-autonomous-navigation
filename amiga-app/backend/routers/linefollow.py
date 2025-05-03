@@ -32,6 +32,7 @@ from fastapi import Depends
 from pydantic import BaseModel
 
 from google.protobuf.empty_pb2 import Empty
+import shutil
 
 
 from pathlib import Path
@@ -154,6 +155,12 @@ async def end_turn_calibration(request: Request):
     return {"message": "Turn calibration complete."}
 
 
+def clear_line_data(line_name: str):
+    line_path = f"{POINTCLOUD_DATA_DIR}/{line_name}"
+    if not os.path.exists(line_path):
+        return
+    shutil.rmtree(line_path)
+
 class LineFollowData(BaseModel):
     num_rows: int
     first_turn_right: bool
@@ -248,6 +255,7 @@ async def follow_line(
     track_client = event_manager.clients["track_follower"]
     line_track: Track = format_track(total_path)
 
+    clear_line_data(line_name)
     await track_client.request_reply("/set_track", TrackFollowRequest(track=line_track))
     await track_client.request_reply("/start", Empty())
     vars.following_track = True
