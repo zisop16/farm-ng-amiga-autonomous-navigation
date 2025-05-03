@@ -117,8 +117,8 @@ if __name__ == '__main__':
     
     points_0, points_1, points_2 = apply_transform(points_0, points_1, points_2)
 
-    all_points = np.concatenate([points_0, points_1, points_2], axis=0)
-    all_colors = np.concatenate([colors_0, colors_1, colors_2], axis=0)
+    all_points = np.concatenate([points_0, points_2], axis=0)
+    all_colors = np.concatenate([colors_0, colors_2], axis=0)
 
     print(all_points.shape)
     point_cloud = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(all_points))
