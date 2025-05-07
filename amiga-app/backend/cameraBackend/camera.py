@@ -213,13 +213,13 @@ class Camera:
 
         tofConfig = tof.initialConfig.get()
         # choose a median filter or use none - using the median filter improves the pointcloud but causes discretization of the data
+        tofConfig.enableOpticalCorrection = True
+        tofConfig.enablePhaseShuffleTemporalFilter = True
+        tofConfig.phaseUnwrappingLevel = 0
+        tofConfig.phaseUnwrapErrorThreshold = 300
         tofConfig.median = dai.MedianFilter.KERNEL_3x3
         # tofConfig.median = dai.MedianFilter.KERNEL_5x5
         # tofConfig.median = dai.MedianFilter.KERNEL_7x7
-        tofConfig.enablePhaseShuffleTemporalFilter = True
-
-        tofConfig.phaseUnwrappingLevel = 1
-        tofConfig.phaseUnwrapErrorThreshold = 300
         tof.initialConfig.set(tofConfig)
 
         # rgb settings
@@ -336,7 +336,8 @@ class Camera:
 
         # R = rotation matrix , t = translation vector
         R, t = self.transform_matrix[:3, :3], self.transform_matrix[:3, 3]
-        transformed_points = raw_points.dot(R.T) + t
+        t *= 1000 # Convert from meters to mm
+        transformed_points = raw_points.dot(R) + t
 
         self.point_cloud.points = o3d.utility.Vector3dVector(transformed_points)
         self.point_cloud.colors = o3d.utility.Vector3dVector(colors)
