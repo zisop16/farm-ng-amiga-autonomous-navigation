@@ -259,6 +259,7 @@ async def follow_line(
     await track_client.request_reply("/set_track", TrackFollowRequest(track=line_track))
     await track_client.request_reply("/start", Empty())
     vars.following_track = True
+    vars.user_paused_track = False
 
     background_tasks.add_task(
         handle_image_capture,
@@ -288,8 +289,11 @@ async def handle_image_capture(
     """
     current_row_number = -1
     last_image_capture = 0
-    initial_distance_offset = 0.8
-    distance_between_images = 1.0
+    initial_distance_offset = 0.4
+    # should correspond to the size of the bounding box defined in volume estimation
+    distance_between_images: float = 1.0
+    # robot will pause every 10 images
+    images_before_pause: int = 10
 
     vars.track_follow_id += 1
     track_follow_id = vars.track_follow_id
@@ -320,29 +324,38 @@ async def handle_image_capture(
                     break
                 calculated_row_number += 1
             walking_row = calculated_row_number != len(row_indices)
-            if walking_row:
-                dist_remaining = progress.distance_remaining
-                if current_row_number != calculated_row_number:
-                    # We have started a new segment
-                    current_row_number = calculated_row_number
-                    print(f"Started row segment: {current_row_number}")
-                    last_image_capture = dist_remaining - initial_distance_offset
-                    capture_number = 0
-                else:
-                    distance_travelled = last_image_capture - dist_remaining
-                    if distance_travelled > distance_between_images:
-                        print(
-                            f"Travelled a distance of {distance_travelled} meters. Capturing image"
-                        )
-                        last_image_capture = dist_remaining
-                        await client.request_reply("/pause", Empty())
-                        await capture_image(
-                            camera_msg_queue,
-                            line_name,
-                            current_row_number,
-                            capture_number,
-                        )
-                        capture_number += 1
+            if not walking_row:
+                continue
+            dist_remaining = progress.distance_remaining
+            if current_row_number != calculated_row_number:
+                # We have started a new segment
+                current_row_number = calculated_row_number
+                print(f"Started row segment: {current_row_number}")
+                last_image_capture = dist_remaining - initial_distance_offset
+                capture_number = 0
+            else:
+                distance_travelled = last_image_capture - dist_remaining
+                if distance_travelled > distance_between_images:
+                    print(
+                        f"Travelled a distance of {distance_travelled} meters. Capturing image"
+                    )
+                    last_image_capture = dist_remaining
+                    await client.request_reply("/pause", Empty())
+                    await capture_image(
+                        camera_msg_queue,
+                        line_name,
+                        current_row_number,
+                        capture_number,
+                    )
+                    capture_number += 1
+                    if capture_number % images_before_pause == 0:
+                        # the robot will sleep for 10 seconds after it has taken the number of images
+                        # specified for a single segment
+                        # this will allow us to manually pause the robot to prevent it from continuing too fast
+                        segment_sleep_time: float = 10
+                        await asyncio.sleep(segment_sleep_time)
+                    # This will be true if the user has paused the track while the robot is stopped
+                    if not vars.user_paused_track:
                         await client.request_reply("/resume", Empty())
 
 
@@ -357,8 +370,10 @@ async def capture_image(
     }
 
     camera_msg_queue.put(msg)
-    await asyncio.sleep(3)
-    return
+
+    # Pause the robot in place to mitigate motion blur or account for camera latency
+    capture_pause_time: float = 1.2
+    await asyncio.sleep(capture_pause_time)
 
 
 @router.post("/line/delete/{track_name}")
