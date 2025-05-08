@@ -9,13 +9,13 @@ const ExitButton: React.FC = () => {
         const killEndpoint = `${import.meta.env.VITE_API_URL}/kill`;
 
         // Close the python server
-        fetch(killEndpoint, {method: "GET"});
+        fetch(killEndpoint, { method: "GET" });
 
         const requestBody = {
             account_name: appData.account,
             service_id: appData.name,
             action: "stop",
-            app_route: appData.app_route
+            app_route: appData.app_route,
         };
 
         // request server start the service
@@ -50,7 +50,6 @@ const ExitButton: React.FC = () => {
     }, []);
 
     return (
-
         <Button
             variant="contained"
             style={{ width: "100px", fontSize: "30px" }}

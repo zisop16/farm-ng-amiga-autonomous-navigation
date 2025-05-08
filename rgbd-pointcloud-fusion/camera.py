@@ -18,9 +18,9 @@ class Camera:
         self._create_pipeline()
         self.device = dai.Device(self.pipeline, self.device_info)
 
-        self.device.setIrLaserDotProjectorBrightness(1200)
+        self.device.setIrLaserDotProjectorBrightness(0)
 
-        self.intrinsic_mat = np.array(self.device.readCalibration().getCameraIntrinsics(dai.CameraBoardSocket.RGB, 3840, 2160))
+        self.intrinsic_mat = np.array(self.device.readCalibration().getCameraIntrinsics(dai.CameraBoardSocket.RGB, -1, -1))
         print(self.intrinsic_mat)
 
 
@@ -88,55 +88,55 @@ class Camera:
 
     def _create_pipeline(self):
         pipeline = dai.Pipeline()
+        self.PIPELINE_FPS = 30
 
-        # Time of Flight to dppth node
+        # Time‐of‐flight / depth pipeline
+        # Create ToF config
+        xin_tof_cfg = pipeline.create(dai.node.XLinkIn)
+        xin_tof_cfg.setStreamName("tofConfig")
+
         tof = pipeline.create(dai.node.ToF)
-        tofConfig = tof.initialConfig.get()
-        # TODO: Figure out optimal settings
-        # Optional. Best accuracy, but adds motion blur.
-        # see ToF node docs on how to reduce/eliminate motion blur.
-        tofConfig.enableOpticalCorrection = True
-        tofConfig.enablePhaseShuffleTemporalFilter = True
-        tofConfig.phaseUnwrappingLevel = 1
-        tofConfig.phaseUnwrapErrorThreshold = 230
-        # tofConfig.enableTemperatureCorrection = False # Not yet supported
-        xinTofConfig = pipeline.create(dai.node.XLinkIn)
-        xinTofConfig.setStreamName("tofConfig")
-        xinTofConfig.out.link(tof.inputConfig)
 
-        tof.initialConfig.set(tofConfig)
+        xin_tof_cfg.out.link(tof.inputConfig)
 
+        # Apply ToF settings
+        cfg = tof.initialConfig.get()
+        cfg.enableOpticalCorrection = True
+        cfg.enablePhaseShuffleTemporalFilter = False # Temporal smoothing
+        cfg.phaseUnwrappingLevel = 0 # Not needed because of close range
+        cfg.phaseUnwrapErrorThreshold = 128 # Reject more noise
 
-        # Raw ToF camera node
+        tof.initialConfig.set(cfg)
+
+        # Raw ToF camera feed
         cam_tof = pipeline.create(dai.node.Camera)
-        cam_tof.setFps(60) # ToF node will produce depth frames at /2 of this rate
         cam_tof.setBoardSocket(dai.CameraBoardSocket.CAM_A)
+        # cam_tof.setFps(self.PIPELINE_FPS * 2)  # ToF outputs at half this rate
+        cam_tof.setFps(self.PIPELINE_FPS * 2)  # ToF outputs at half this rate
         cam_tof.raw.link(tof.input)
 
+        # ToF to depth output
+        xout_depth = pipeline.create(dai.node.XLinkOut)
+        xout_depth.setStreamName("depth")
+        tof.depth.link(xout_depth.input)
 
-        # Output depth node
-        xout = pipeline.create(dai.node.XLinkOut)
-        xout.setStreamName("depth")
-        tof.depth.link(xout.input)
-
-
-        # RGB cam
-        cam_rgb = pipeline.create(dai.node.ColorCamera)
+        # RGB camera
+        cam_rgb = pipeline.createColorCamera()
         cam_rgb.setBoardSocket(dai.CameraBoardSocket.CAM_C)
         cam_rgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_800_P)
         cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
         cam_rgb.setIspScale(1, 2)
-        cam_rgb.setFps(30)
+        cam_rgb.setFps(self.PIPELINE_FPS)
         cam_rgb.setVideoSize(640, 400)
-        # cam_rgb.initialControl.setManualFocus(130)
 
+        # RGB image outputs
         xout_image = pipeline.createXLinkOut()
         xout_image.setStreamName("image")
         cam_rgb.isp.link(xout_image.input)
 
         self.image_size = cam_rgb.getIspSize()
-        print("Size", cam_rgb.getIspSize())
         self.pipeline = pipeline
+
 
 
     def update(self):
@@ -171,41 +171,6 @@ class Camera:
             self.point_cloud_window.update_renderer()
 
 
-    def filter_non_green_points(self, point_cloud: o3d.geometry.PointCloud, visualize: bool = False) -> o3d.geometry.PointCloud:
-
-        pc_points = np.asarray(point_cloud.points)
-        pc_colors = np.asarray(point_cloud.colors)
-
-        colors_hsv = colors.rgb_to_hsv(pc_colors)
-
-        HUE = 0
-        SAT = 1
-        VAL = 2
-        green_lower_hue = 65/360.
-        green_upper_hue = 165/360.
-        lower_sat = .30
-        lower_value = .30
-
-        hues = colors_hsv[:, HUE]
-        saturations = colors_hsv[:, SAT]
-        values = colors_hsv[:, VAL]
-
-
-        mask = (hues >= green_lower_hue) and (hues <= green_upper_hue) and (saturations > lower_sat) and (values > lower_value)
-
-        filtered_points = pc_points[mask]
-        filtered_colors = pc_colors[mask]
-
-        filtered_cloud = o3d.geometry.PointCloud()
-        filtered_cloud.points = o3d.utility.Vector3dVector(filtered_points)
-        filtered_cloud.colors = o3d.utility.Vector3dVector(filtered_colors)
-        # if visualize:
-        #     o3d.visualization.draw_geometries([point_cloud])
-        #     o3d.visualization.draw_geometries([filtered_cloud])
-
-        return filtered_cloud
-
-
     def rgbd_to_point_cloud(self, depth_frame, image_frame, downsample=False, remove_noise=False):
         depth_frame = depth_frame[:400, :]
         rgb_o3d = o3d.geometry.Image(image_frame)
@@ -224,7 +189,8 @@ class Camera:
             point_cloud = point_cloud.voxel_down_sample(voxel_size=0.01)
 
         if remove_noise:
-            point_cloud = point_cloud.remove_statistical_outlier(nb_neighbors=30, std_ratio=0.1)[0]
+            point_cloud = point_cloud.remove_statistical_outlier(nb_neighbors=50, std_ratio=0.5)[0]
+            point_cloud, _ = point_cloud.remove_radius_outlier( nb_points=16, radius=2.0) # radius in mm
 
         self.point_cloud.points = point_cloud.points
         self.point_cloud.colors = point_cloud.colors
@@ -237,4 +203,4 @@ class Camera:
         # apply point cloud alignment transform
         self.point_cloud.transform(self.point_cloud_alignment)
 
-        return self.filter_non_green_points( self.point_cloud )
+        return self.point_cloud

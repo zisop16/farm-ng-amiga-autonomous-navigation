@@ -47,11 +47,12 @@ def walk_towards(current_pose: Pose3F64, target_position: np.array, goal_counter
     target_angle = np.acos(diff[0] / distance)
     if diff[1] < 0:
         target_angle = -target_angle
+    
     angle_diff = target_angle - current_angle
 
     turn = create_turn_segment(current_pose, angle_diff, f"goal{goal_counter}")
     print(f"Goal {goal_counter}: Walking from {current_position} to {target_position}")
-    print(f"Rotating {angle_diff} radians")
+    print(f"Facing {current_angle}, target: {target_angle}. Rotating {angle_diff} radians")
     if turn != []:
         current_pose = turn[-1]
     cutoff = len(turn)

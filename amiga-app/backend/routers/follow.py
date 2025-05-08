@@ -66,9 +66,10 @@ async def pause_following(request: Request):
     """Instructs the robot to pause track following."""
     event_manager = request.state.event_manager
     client = event_manager.clients["track_follower"]
-    
     try:
         await client.request_reply("/pause", Empty())
+        vars: StateVars = request.state.vars
+        vars.user_paused_track = True
     except AioRpcError:
         return {"error": "Not currently following a track"}
 
@@ -83,6 +84,8 @@ async def resume_following(request: Request):
     
     try:
         await client.request_reply("/resume", Empty())
+        vars: StateVars = request.state.vars
+        vars.user_paused_track = False
     except AioRpcError:
         return {"error": "Not currently following a track"}
 

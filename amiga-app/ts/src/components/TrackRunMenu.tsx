@@ -25,19 +25,12 @@ export default function TrackRunMenu(props: TrackRunProps) {
     const [followingTrack, setFollowingTrack] = useState(false);
     const [trackLoaded, setTrackLoaded] = useState(false);
 
-    const [numRows, setNumRows] = useState(1);
+    const [numRows, setNumRows] = useState("1");
     const [firstTurnRight, setFirstTurnRight] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Keyboard
     const { openKeyboard } = useKeyboard();
-
-    const updateNumRows = (input: string) => {
-        let val = toPosInt(input);
-        if (val != false) {
-            setNumRows(val);
-        }
-    };
 
     useEffect(() => {
         // go to ws:// instead of http://
@@ -118,6 +111,10 @@ export default function TrackRunMenu(props: TrackRunProps) {
         function makeFollowTrackRequest() {
             let followTrackEndpoint;
             let requestData;
+            let numRowsInt = toPosInt(numRows);
+            if (numRowsInt === false) {
+                return;
+            }
             if (props.selectedType === TrackType.standard) {
                 followTrackEndpoint = `${import.meta.env.VITE_API_URL}/follow/start/${props.selectedTrack}`;
                 requestData = {method: "POST"};
@@ -129,7 +126,7 @@ export default function TrackRunMenu(props: TrackRunProps) {
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        "num_rows": numRows,
+                        "num_rows": numRowsInt,
                         "first_turn_right": firstTurnRight
                     })
                 };
@@ -203,10 +200,8 @@ export default function TrackRunMenu(props: TrackRunProps) {
     }
 
     function rowsError() {
-        if (!Number.isInteger(numRows)){
-            return true;
-        }
-        return numRows <= 0
+        let err = toPosInt(numRows) === false;
+        return err;
     }
 
     function toPosInt(str: string) {  
@@ -230,12 +225,11 @@ export default function TrackRunMenu(props: TrackRunProps) {
         return (<>
         <Grid2 size={6}>
             <TextField
-                type="number"
                 inputRef={inputRef}
                 value={numRows}
-                onChange={(event) => updateNumRows(event.target.value)}
+                onChange={(event) => setNumRows(event.target.value)}
                 onFocus={() => openKeyboard(
-                    (input) => updateNumRows(input),
+                    (input) => setNumRows(input),
                     String(numRows),
                     inputRef
                 )}
@@ -249,8 +243,14 @@ export default function TrackRunMenu(props: TrackRunProps) {
         <Grid2 size={6}>
             <Button 
             style={buttonStyle} 
-            onClick={() => setFirstTurnRight(!firstTurnRight)}>
-                {firstTurnRight ? "Turn Right" : "Turn Left"}
+            variant="contained"
+            onClick={
+                () => {
+                    setFirstTurnRight(!firstTurnRight);
+                    console.log(firstTurnRight);
+                }
+            }>
+                {firstTurnRight ? "Turning Right" : "Turning Left"}
             </Button>
         </Grid2>
         </>);
