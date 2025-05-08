@@ -291,9 +291,9 @@ async def handle_image_capture(
     last_image_capture = 0
     # The robot must move a tiny distance at the start of each row
     # To straighten itself
-    initial_distance_offset: float = 2
+    initial_distance_offset: float = .5
     # should correspond to the size of the bounding box defined in volume estimation
-    bounding_box_length: float = 1.2
+    bounding_box_length: float = .7
     # robot will pause every 10 images
     images_before_pause: int = 10
 
