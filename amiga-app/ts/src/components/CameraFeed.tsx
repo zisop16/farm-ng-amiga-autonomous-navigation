@@ -5,33 +5,35 @@ import { Box } from "@mui/material";
 // 2 = right camera
 
 interface CameraFeedProps {
-    orientation: string,
-};
+    orientation: string;
+}
 
 function orientationToIp(orientation: string) {
-    let baseIp = "http://10.95.76"
+    let baseIp = "http://127.0.0.1";
     switch (orientation) {
         case "left":
-            baseIp += ".11"
-            break
-         case "center":
-            baseIp += ".12"
-            break
+            baseIp += ":5011/rgb";
+            break;
+        case "center":
+            baseIp += ":5012/rgb";
+            break;
         case "right":
-            baseIp += ".13"
-            break
+            baseIp += ":5013/rgb";
+            break;
         default:
-            baseIp += ".12"
+            baseIp += ":5012/rgb";
     }
-    baseIp += ":5000/rgb"
-    return baseIp
+    return baseIp;
 }
 
 export default function CameraFeed(props: CameraFeedProps) {
     return (
-        <Box style={{ backgroundColor: "#000", height: "400px", width: "640px", color: "white" }}>
-            <img src={orientationToIp(props.orientation)}/>
+        <Box style={{ backgroundColor: "#000", height: "400px", width: "640px", color: "white", }} >
+            <img
+                src={orientationToIp(props.orientation)}
+                width="640"
+                height="400"
+            />
         </Box>
-
-    )
+    );
 }

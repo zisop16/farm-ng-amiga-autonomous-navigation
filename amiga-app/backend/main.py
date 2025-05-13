@@ -14,10 +14,12 @@
 
 from __future__ import annotations
 
+import signal
 import sys
 import os
 from pathlib import Path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # Navigate one directory out of the location of main.py
 os.chdir(f"{Path(__file__).parent}/..")
 
@@ -46,10 +48,13 @@ from multiprocessing import Process, Queue
 
 from config import *
 
-from routers import tracks, record, follow, linefollow
+from routers import tracks, record, follow, linefollow, pointcloud
 
 from cameraBackend.oakManager import startCameras
 
+global oak_manager
+global camera_msg_queue
+camera_msg_queue = Queue()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -69,27 +74,30 @@ async def lifespan(app: FastAPI):
 
     event_manager = EventClientSubscriptionManager(config_list=service_config_list)
 
-    global queue
-    queue = Queue()
-
-    no_cameras = True
+    no_cameras = False
     if no_cameras:
         oak_manager = None
     else:
-        oak_manager = Process(target=startCameras, args=(queue,))
+        oak_manager = Process(target=startCameras, args=(camera_msg_queue, POINTCLOUD_DATA_DIR))
         oak_manager.start()
-    
+        print(f"Starting oak manager with PID {oak_manager.pid}")
+
     asyncio.create_task(event_manager.update_subscriptions())
 
     yield {
         "event_manager": event_manager,
         "oak_manager": oak_manager,
+        "camera_msg_queue": camera_msg_queue,
         # Yield dict cannot be changed directly, but objects inside it can
         # So we use a vars item for all our non constant variables
-        "vars": StateVars()
-    } 
+        "vars": StateVars(),
+    }
 
-    print("Shutting down...")
+    # Shutdown cameras properly
+    if oak_manager != None:
+        print("Stopping camera services...")
+        oak_manager.terminate()
+        oak_manager.join()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -106,24 +114,34 @@ app.include_router(tracks.router)
 app.include_router(record.router)
 app.include_router(follow.router)
 app.include_router(linefollow.router)
+app.include_router(pointcloud.router)
+
+
+def handle_sigterm(signum, frame):
+    print("Received SIGTERM, stopping camera services")
+    if oak_manager != None:
+        oak_manager.terminate()
+        oak_manager.join()
+    sys.exit(0)
+
+
+signal.signal(signal.SIGTERM, handle_sigterm)
+
 
 @app.websocket("/filter_data")
-async def filter_data(
-    websocket: WebSocket,
-    every_n: int = 3
-):
+async def filter_data(websocket: WebSocket, every_n: int = 3):
     """Coroutine to subscribe to filter state service via websocket.
-    
+
     Args:
         websocket (WebSocket): the websocket connection
         every_n (int, optional): the frequency to receive events.
-    
+
     Usage:
         ws = new WebSocket(`${API_URL}/filter_data`)
     """
     event_manager = websocket.state.event_manager
     full_service_name = "filter"
-    client: EventClient = (event_manager.clients[full_service_name])
+    client: EventClient = event_manager.clients[full_service_name]
 
     await websocket.accept()
 
@@ -144,7 +162,7 @@ async def filter_data(
 
     if not disconnected:
         await websocket.close()
-    
+
 
 if __name__ == "__main__":
 
@@ -162,7 +180,7 @@ if __name__ == "__main__":
             "/",
             StaticFiles(directory=str(react_build_directory.resolve()), html=True),
         )
-    
+
     # print(f"camera PID: {oakManager.pid}")
 
     # run the server

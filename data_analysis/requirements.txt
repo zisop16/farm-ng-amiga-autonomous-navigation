@@ -1,0 +1,9 @@
+black
+numpy
+pyvista
+scipy
+mypy==1.11.2
+scikit-learn
+open3d
+depthai
+matplotlib

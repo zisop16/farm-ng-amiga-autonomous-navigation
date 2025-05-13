@@ -37,12 +37,14 @@ def estimate_volume(point_cloud: o3d.geometry.PointCloud) -> float:
     
 
     # Bounding box parameters
-    z_lower = point_cloud[round(num_points * .25), 2]
-    z_upper = point_cloud[round(num_points * .95), 2]
-    x_lower = -250
-    x_upper = 450
-    y_lower = -270
-    y_upper = 330
+    z_lower = point_cloud[round(num_points * .05), 2]
+    z_upper = point_cloud[round(num_points * .75), 2]
+    # X is in the direction the robot moves
+    # so this corresponds to a 1.2m bounding box length
+    x_lower = -450
+    x_upper = 350
+    y_lower = -450
+    y_upper = 350
 
     x_coords = point_cloud[:, 0]
     y_coords = point_cloud[:, 1]
@@ -84,9 +86,10 @@ async def generate_yield_estimate(line_name: str) -> float:
     row_directories = [f.path for f in os.scandir(pointclouds_dir) if f.is_dir()]
     total_volume = 0
     for row_directory in row_directories:
-        pointcloud_files = os.listdir(row_directory)
-        for pointcloud_filename in pointcloud_files:
-            point_cloud = o3d.io.read_point_cloud(pointcloud_filename)
+        pointcloud_captures = os.listdir(row_directory)
+        for capture_name in pointcloud_captures:
+            pc_file_path = f"{row_directory}/{capture_name}/combined.ply"
+            point_cloud = o3d.io.read_point_cloud(pc_file_path)
             total_volume += estimate_volume(point_cloud)
 
     return m * total_volume + b
