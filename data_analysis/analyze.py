@@ -145,7 +145,7 @@ def estimate_volume(pc_dir) -> float:
 
     # We will assume the density of the cilantro is not linear with height, so
     # We apply a density exponent to correct for this
-    density_exponent = 3.5
+    density_exponent = 3.8
     volume_approximator = average_height ** density_exponent
 
     visual = False
