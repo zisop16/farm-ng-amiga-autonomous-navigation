@@ -259,7 +259,6 @@ async def follow_line(
     await track_client.request_reply("/set_track", TrackFollowRequest(track=line_track))
     await track_client.request_reply("/start", Empty())
     vars.following_track = True
-    vars.user_paused_track = False
 
     background_tasks.add_task(
         handle_image_capture,
@@ -293,9 +292,7 @@ async def handle_image_capture(
     # To straighten itself
     initial_distance_offset: float = .5
     # should correspond to the size of the bounding box defined in volume estimation
-    bounding_box_length: float = .7
-    # robot will pause every 10 images
-    images_before_pause: int = 10
+    bounding_box_length: float = .5
 
     vars.track_follow_id += 1
     track_follow_id = vars.track_follow_id
@@ -349,16 +346,9 @@ async def handle_image_capture(
                         current_row_number,
                         capture_number,
                     )
+                    print("Image saved")
                     capture_number += 1
-                    if capture_number % images_before_pause == 0:
-                        # the robot will sleep for 10 seconds after it has taken the number of images
-                        # specified for a single segment
-                        # this will allow us to manually pause the robot to prevent it from continuing too fast
-                        segment_sleep_time: float = 10
-                        await asyncio.sleep(segment_sleep_time)
-                    # This will be true if the user has paused the track while the robot is stopped
-                    if not vars.user_paused_track:
-                        await client.request_reply("/resume", Empty())
+                    await client.request_reply("/resume", Empty())
 
 
 async def capture_image(

@@ -20,7 +20,7 @@ async def kill_app():
 async def list_tracks():
     """Lists all JSON track files in the `TRACKS_DIR` directory."""
     if not os.path.exists(TRACKS_DIR):
-        return {"error": "No tracks directory found."}
+        os.mkdir(TRACKS_DIR)
 
     track_names = [f[:-5] for f in os.listdir(TRACKS_DIR) if f.endswith(".json")]
 

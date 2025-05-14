@@ -20,7 +20,6 @@ class StateVars(BaseModel):
     turn_calibration_segments: int = 0
     turn_length: float = 0
     following_track: bool = False
-    user_paused_track: bool = False
     track_follow_id: int = 0
 
     class Config:

@@ -68,10 +68,9 @@ async def pause_following(request: Request):
     client = event_manager.clients["track_follower"]
     try:
         await client.request_reply("/pause", Empty())
-        vars: StateVars = request.state.vars
-        vars.user_paused_track = True
     except AioRpcError:
-        return {"error": "Not currently following a track"}
+        # return {"error": "Not currently following a track"}
+        pass
 
     return {"message": "Pausing track following"}
 
@@ -84,10 +83,9 @@ async def resume_following(request: Request):
     
     try:
         await client.request_reply("/resume", Empty())
-        vars: StateVars = request.state.vars
-        vars.user_paused_track = False
     except AioRpcError:
-        return {"error": "Not currently following a track"}
+        # return {"error": "Not currently following a track"}
+        pass
 
     return {"message": "Resuming track following"}
 

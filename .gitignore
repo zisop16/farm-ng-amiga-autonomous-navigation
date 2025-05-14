@@ -8,3 +8,4 @@ amiga-app/backend/cameraBackend/.cache/
 .DS_Store
 
 data_analysis/pointclouds/
+amiga-app/pointclouds/
