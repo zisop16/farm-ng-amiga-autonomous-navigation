@@ -145,15 +145,15 @@ def estimate_volume(pc_dir) -> float:
 
     # We will assume the density of the cilantro is not linear with height, so
     # We apply a density exponent to correct for this
-    density_exponent = 3.8
+    density_exponent = 3.83
     volume_approximator = average_height ** density_exponent
 
-    visual = False
+    visual = True
     if visual:
         voxel_size = 2
         voxel_grid = o3d.geometry.VoxelGrid.create_from_point_cloud(point_cloud, voxel_size=voxel_size)
         vis = o3d.visualization.Visualizer()
-        vis.create_window(height=800, width=800)
+        vis.create_window(height=900, width=1600)
         vis.add_geometry(voxel_grid)
         vis.run()
     print(volume_approximator)
@@ -164,8 +164,9 @@ def analyze_data() -> tuple[float, np.ndarray, np.ndarray]:
     with open(weights_path, 'r') as weights_file:
         weights = json.loads(weights_file.read())
     weights = np.array(weights)
+    use_cache = False
     cache_path = "cached_data.json"
-    if os.path.exists(cache_path):
+    if use_cache and os.path.exists(cache_path):
         with open(cache_path, 'r') as cache_file:
             cache = json.loads(cache_file.read())
             k = cache["k"]
