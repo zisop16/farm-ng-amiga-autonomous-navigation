@@ -26,15 +26,16 @@ const ExitButton: React.FC = () => {
             },
             body: JSON.stringify(requestBody),
         })
-            .then((response) => response.json())
-            .then((result) => {
-                console.log("Service action response:", result);
-                // redirect
-                window.location.href = `${window.location.protocol}//${window.location.hostname}/apps/launcher`;
-            })
-            .catch((error) => {
-                console.error("Error:", error);
-            });
+        .then((response) => response.json())
+        .then((result) => {
+            console.log("Service action response:", result);
+            // redirect
+        })
+        .catch((error) => {
+            console.error("Error:", error);
+        }).finally(() => {
+            window.location.href = `${window.location.protocol}//${window.location.hostname}/apps/launcher`;
+        });
     };
 
     useEffect(() => {
