@@ -4,9 +4,8 @@ import Keyboard from "react-simple-keyboard";
 import "react-simple-keyboard/build/css/index.css";
 import { useKeyboard } from "../context/KeyboardContext";
 
-export enum TrackType {
-    line,
-    standard
+enum LineCreationState {
+    FIRST_TURN, CREATING_LINE, SECOND_TURN
 };
 
 interface TrackCreateProps {
@@ -18,11 +17,9 @@ interface TrackCreateProps {
 
 export default function TrackCreateMenu(props: TrackCreateProps) {
     const [newTrackName, setNewTrackName] = useState("");
-    const [trackType, setTrackType] = useState(TrackType.standard);
     // This variable will store the error message associated with creating a given track
     const [trackCreationError, setTrackCreationError] = useState("");
-    const [calibratingTurn, setCalibratingTurn] = useState(false);
-    const [lineCreated, setLineCreated] = useState(false);
+    const [lineState, setLineState] = useState(LineCreationState.FIRST_TURN);
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Keyboard
@@ -68,12 +65,7 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
 
     function endTrackCreation() {
         // Make an API call to stop creating track object
-        let stop_url;
-        if (trackType == TrackType.line) {
-            stop_url = `${import.meta.env.VITE_API_URL}/line/record/stop`;
-        } else {
-            stop_url = `${import.meta.env.VITE_API_URL}/record/stop`;
-        }
+        const stop_url = `${import.meta.env.VITE_API_URL}/line/record/stop`;
         fetch(stop_url , {
             method: "POST",
             headers: {
@@ -98,30 +90,6 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
         margin: "20px 0 0 0",
         boxShadow: 24,
     };
-
-    function getTrackTypeButtonText() {
-        switch (trackType) {
-            case TrackType.line: {
-                return "Line";
-            }
-            case TrackType.standard: {
-                return "Standard";
-            }      
-        }
-    }
-
-    function swapTrackType() {
-        switch(trackType) {
-            case TrackType.line: {
-                setTrackType(TrackType.standard);
-                return;
-            }
-            case TrackType.standard: {
-                setTrackType(TrackType.line);
-                return;
-            }
-        }
-    }
 
     let buttonStyle = { 
         fontSize: "17px", 
@@ -191,16 +159,6 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
             <Grid2 container rowSpacing={2} spacing={3} style={{display: "flex", alignItems: "center"}}>
                 <Grid2 size={4}>
                     <Typography variant="h5">
-                        Track Type:
-                    </Typography>
-                </Grid2>
-                <Grid2 size={8}>
-                    <Button variant="contained" onClick={swapTrackType} style={buttonStyle}>
-                        { getTrackTypeButtonText() }
-                    </Button>
-                </Grid2>
-                <Grid2 size={4}>
-                    <Typography variant="h5">
                         Track Name:
                     </Typography>
                 </Grid2>
@@ -223,11 +181,11 @@ export default function TrackCreateMenu(props: TrackCreateProps) {
                     </Button>
                 </Grid2>
                 <Grid2 size={6}>
-                    <Button variant="contained" disabled={!props.trackBeingCreated || lineCreated} onClick={endTrackCreation} style={buttonStyle}>
+                    <Button variant="contained" disabled={!props.trackBeingCreated} onClick={endTrackCreation} style={buttonStyle}>
                         End Track
                     </Button>
                 </Grid2>
-                { (trackType === TrackType.line) ? lineTrackButtons() : <></>}
+                { lineTrackButtons()}
             </Grid2>
         </Box>
         </>
