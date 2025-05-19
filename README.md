@@ -1,6 +1,7 @@
-3D Scanning System for Amiga Farm Robot
-Technical Report
-Executive Summary
+## 3D Scanning System for Amiga Farm Robot
+##     Technical Report
+
+##     Summary
 This report documents the development of a 3D scanning system for the Amiga farm robot platform. The system utilizes multiple OAK-D cameras to create aligned 3D point clouds that can be used for crop monitoring, measurement, and analysis. The system integrates with the Amiga's existing track following capabilities to enable automated data collection along predefined paths.
 
 Over the course of development, we created a prototype with basic track following using the track follower and filter services for the Amiga robot. This prototype included the ability to create arbitrary tracks, save them to a directory on the Amiga brain, and then load them to be followed. Additionally, our prototype included a DepthAI camera pipeline that allowed for the capturing and combining of point clouds generated on our cameras.
